@@ -7,11 +7,11 @@ import {
 import api from '../api/client';
 
 const POPULAR_CINEMAS = [
+  { name: 'AAA Cinemas (AAAC)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/20261217' },
   { name: 'Prasads Multiplex (PRHN)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217' },
   { name: 'AMB Cinemas (AMBC)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/20261217' },
   { name: 'PVR Inox Nexus (PVND)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/20261217' },
   { name: 'Sudarshan 35MM (RTC X Roads)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/20261217' },
-  { name: 'Maison INOX Jio Plaza (IMJW)', city: 'mumbai', url: 'https://in.bookmyshow.com/cinemas/mumbai/maison-inox-jio-world-plaza-bkc/buytickets/IMJW/20261217' },
 ];
 
 function SetAlert() {
@@ -269,26 +269,42 @@ function SetAlert() {
           /* QUICK SELECT / MANUAL MODE */
           <div className="space-y-6">
             <div>
-              <label className="font-dela text-sm uppercase text-ink block mb-2">
-                1. Select Popular Cinema:
+              <label className="font-dela text-xs uppercase text-ink block mb-2">
+                Tap Quick Cinema or Type Below:
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {POPULAR_CINEMAS.map((c, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => selectQuickCinema(c)}
-                    className={`p-3 rounded-[12px] border-2 border-ink text-left font-space font-bold text-xs transition-all ${
+                    className={`px-3 py-2 rounded-[10px] border-2 border-ink text-left font-space font-bold text-xs transition-all ${
                       form.theatreName === c.name
-                        ? 'bg-acid shadow-hard-sm'
+                        ? 'bg-acid shadow-hard-xs'
                         : 'bg-paper hover:bg-acid/40 shadow-hard-xs'
                     }`}
                   >
-                    <div className="text-ink">{c.name}</div>
-                    <div className="font-mono text-[10px] text-ink/60 uppercase">{c.city}</div>
+                    {c.name}
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Custom Cinema Name Input */}
+            <div>
+              <label className="font-dela text-xs uppercase text-ink block mb-1">
+                Theatre / Cinema Name:
+              </label>
+              <input
+                type="text"
+                value={form.theatreName}
+                onChange={e => {
+                  updateField('theatreName', e.target.value);
+                  updateField('bmsUrl', ''); // Clear URL to ensure custom typed name takes priority!
+                }}
+                placeholder="e.g. AAA Cinemas Ameerpet, Sudarshan 35MM, PVR"
+                className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm font-bold text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
