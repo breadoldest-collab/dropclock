@@ -1,159 +1,296 @@
-# 🎬 Movie Ticket Alarm Clock
+# Dropclock
 
-> **Never miss a blockbuster booking again.**
-
-Pick your movie. Pick your theatre. We watch BookMyShow 24/7 so you don't have to. The second bookings go live, your phone buzzes with a direct link to grab the best seats.
-
-**Free & Open Source** — Made for the movie-loving community.
+High-throughput, real-time ticket availability monitor and schedule differential detector for multiplex ticketing platforms. Designed to monitor silently opened auditoriums, newly scheduled showtimes, and high-demand cinematic booking drops with sub-minute alert latency.
 
 ---
 
-## How It Works
+## 1. Overview
 
-```
-You pick:    "Watch Avengers: Doomsday at PVR Nexus, Hyderabad"
-                              ↓
-We watch:    Polls BMS every 30s-30min (smart 3-phase system)
-                              ↓
-We alert:    📱 Instant Telegram message + direct BMS booking link
-                              ↓
-You book:    Tap → Seat selection → Best seats secured! 🎉
-```
+Multiplex cinema chains and ticketing aggregators frequently open booking windows incrementally:
+- Initial booking windows often expose limited auditoriums or low-demand formats.
+- High-demand auditoriums (such as large-format screens, laser projection suites, and early-morning/midnight shows) are added unpredictably hours or days later.
+- High-occupancy formats sell out within minutes of schedule modification, rendering standard email notifications ineffective.
 
-## Smart Polling (3 Phases)
-
-| Phase | Interval | When |
-|-------|----------|------|
-| 🧊 **COLD** | Every 30 min | Movie announced, no booking date known |
-| 🔥 **WARM** | Every 3 min | Other cities/theatres opening up |
-| ⚡ **HOT** | Every 30 sec | Bookings detected nearby, yours is imminent |
-
-When bookings open at *any* theatre for a movie, all alerts for that movie auto-escalate to HOT.
+Dropclock operates as a persistent daemon that snapshots published auditorium schedules, computes set differentials at high frequency, and dispatches immediate notifications over SMS and WhatsApp webhooks the second new showtimes are registered.
 
 ---
 
-## Setup
+## 2. Core Architecture
+
+```
+[ BookMyShow Endpoints ]
+           |
+           v (Every 30 Seconds)
++-----------------------+
+|  BMS Scraper Engine   | ---> Extracts DOM showtime pills & window.__NEXT_DATA__
++-----------------------+
+           |
+           v
++-----------------------+
+| Showtime Diff Engine  | ---> Computes: Delta = CurrentSchedules \ KnownBaseline
++-----------------------+
+           |
+     [ Delta > 0? ]
+      /          \
+    (Yes)        (No)
+     /             \
+    v               v
++-----------------------+   +-------------------+
+| Notification Service  |   | Sleep until next  |
+| - Twilio SMS          |   | polling interval  |
+| - WhatsApp API        |   +-------------------+
++-----------------------+
+           |
+           v
+[ User Mobile Device ]
+(Direct Deep-Link to Seat Layout)
+```
+
+### Key Components
+
+- **Schedule Differential Engine**: Maintains an indexed baseline of active showtimes per cinema and date. Incoming payloads are normalized and evaluated against known states using set difference algorithms.
+- **Adaptive Polling Daemon**: Dynamically adjusts polling frequency based on release urgency (Cold: 30 minutes, Warm: 3 minutes, Hot: 30 seconds).
+- **Multi-Channel Dispatcher**: Formats and transmits high-priority payloads containing cinema name, screening format, newly registered timeslots, and direct deep-links targeting the platform's seat selection matrix.
+- **Web Interface**: Neo-Brutalist dashboard built with React, Vite, and Tailwind CSS, allowing zero-friction tracking via direct URL injection or manual multiplex selection.
+
+---
+
+## 3. Technology Stack
+
+### Backend
+- Runtime: Node.js (ES Modules)
+- Framework: Express.js
+- Persistence: MongoDB / Mongoose (MongoDB Atlas compatible)
+- In-Memory Fallback: MongoMemoryServer (Zero-config local development)
+- Extraction & Ingestion: Axios, Cheerio, User-Agents rotation
+- Notifications: Twilio REST API (SMS & WhatsApp), Node Telegram Bot API
+
+### Frontend
+- Build Tool: Vite
+- Library: React 18
+- Routing: React Router 6
+- Styling: Tailwind CSS (Custom Neo-Brutalist design tokens, 0-blur hard shadows, custom print palette)
+- HTTP Client: Axios
+
+---
+
+## 4. Differential Detection Engine
+
+When a cinema URL or identifier is submitted for monitoring:
+
+1. **Baseline Capture**: The engine queries the target cinema URL and extracts all active showtimes:
+   ```json
+   {
+     "theatre": "Prasads Multiplex: Hyderabad",
+     "date": "20261217",
+     "knownShows": ["09:00 AM", "11:05 AM", "02:10 PM", "05:15 PM", "08:20 PM", "11:25 PM"]
+   }
+   ```
+
+2. **Continuous Extraction**: The daemon inspects both rendered DOM pill elements and embedded JSON payloads (`window.__NEXT_DATA__` and `window.__INITIAL_STATE__`).
+
+3. **Set Difference Evaluation**:
+   ```javascript
+   const newlyAddedShows = currentShows.filter(show => !knownShows.includes(show));
+   if (newlyAddedShows.length > 0) {
+     triggerImmediateAlert(newlyAddedShows);
+     updateKnownBaseline(currentShows);
+   }
+   ```
+
+4. **Payload Dispatch**: Dispatches an alert containing only the newly introduced showtimes, preventing redundant notifications for previously known slots.
+
+---
+
+## 5. Repository Structure
+
+```
+dropclock/
+|-- backend/
+|   |-- src/
+|   |   |-- config/
+|   |   |   `-- database.js             # Mongoose connection & in-memory fallback
+|   |   |-- models/
+|   |   |   `-- Alert.js                # Schema definition for monitored trackers
+|   |   |-- routes/
+|   |   |   |-- alerts.js               # REST endpoints for tracker lifecycle
+|   |   |   `-- telegramBot.js          # Telegram bot command processor
+|   |   |-- scripts/
+|   |   |   `-- testSimulation.js       # End-to-end differential test suite
+|   |   |-- services/
+|   |   |   |-- bmsService.js           # Platform scraper & DOM parser
+|   |   |   |-- notificationService.js  # SMS, WhatsApp, and Telegram dispatchers
+|   |   |   `-- pollingService.js       # Background scheduler and diff evaluator
+|   |   `-- server.js                   # Application entry point
+|   |-- .env.example                    # Environment variable schema
+|   |-- package.json
+|   `-- render.yaml                     # Render deployment blueprint
+|
+|-- frontend/
+|   |-- src/
+|   |   |-- api/
+|   |   |   `-- client.js               # Dynamic Axios client instance
+|   |   |-- components/
+|   |   |   `-- Navbar.jsx              # Application navigation bar
+|   |   |-- pages/
+|   |   |   |-- Dashboard.jsx           # Active telemetry and tracker list
+|   |   |   |-- Home.jsx                # Landing page and system overview
+|   |   |   `-- SetAlert.jsx            # Tracker registration wizard
+|   |   |-- App.jsx                     # Root application routing and ticker
+|   |   |-- index.css                   # Global styles and typography rules
+|   |   `-- main.jsx                    # React runtime bootstrap
+|   |-- index.html
+|   |-- package.json
+|   |-- tailwind.config.js              # Custom theme tokens
+|   |-- vercel.json                     # Vercel SPA routing configuration
+|   `-- vite.config.js                  # Vite server and reverse proxy setup
+|
+|-- .gitignore
+`-- README.md
+```
+
+---
+
+## 6. Installation and Local Setup
 
 ### Prerequisites
-- Node.js 18+
-- MongoDB (local or Atlas)
-- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+- Node.js version 18.0.0 or higher
+- npm version 9.0.0 or higher
+- Git version 2.30.0 or higher
+- Access to a MongoDB instance (local or MongoDB Atlas connection URI)
 
-### 1. Clone & Install
-
+### Clone Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/movie-ticket-alarm-clock.git
-cd movie-ticket-alarm-clock
+git clone https://github.com/breadoldest-collab/dropclock.git
+cd dropclock
+```
 
-# Backend
+### Backend Configuration
+```bash
 cd backend
 npm install
 cp .env.example .env
-# Edit .env with your MongoDB URI and Telegram bot token
-
-# Frontend
-cd ../frontend
-npm install
 ```
 
-### 2. Set Up Telegram Bot
+Configure your environment variables in `backend/.env`:
+```env
+PORT=3000
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/bms-notifier?retryWrites=true&w=majority
 
-1. Open Telegram, search for **@BotFather**
-2. Send `/newbot` and follow the prompts
-3. Copy the bot token to `backend/.env`
-4. Start a chat with your bot and send `/start`
+# Optional: Twilio SMS & WhatsApp integration
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 
-### 3. Run
+# Optional: Telegram Bot integration
+TELEGRAM_BOT_TOKEN=
+```
+
+Start the backend service:
+```bash
+npm run dev
+```
+
+### Frontend Configuration
+In a separate terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` to access the interface.
+
+---
+
+## 7. Automated Differential Simulation
+
+To verify the scraping, diffing, and dispatch pipeline without waiting for a live BookMyShow schedule change:
 
 ```bash
-# Terminal 1: Backend
 cd backend
-npm run dev
+npm run test:sim
+```
 
-# Terminal 2: Frontend  
-cd frontend
-npm run dev
+The test runner initializes a baseline of six shows at Prasads Multiplex, simulates a sudden schedule injection of early-morning and midnight screenings, verifies differential detection, and logs the formatted dispatch payloads.
+
+---
+
+## 8. Deployment Specifications
+
+### Backend (Render / Railway / AWS EC2)
+- Build Command: `npm install`
+- Start Command: `node src/server.js`
+- Required Environment Variables:
+  - `MONGODB_URI`: Valid MongoDB connection string.
+  - `PORT`: Target port (defaults to 3000).
+- Network Configuration: Ensure MongoDB Atlas IP Access List permits connections from `0.0.0.0/0` or the hosting provider's egress CIDR block.
+
+### Frontend (Vercel / Cloudflare Pages)
+- Framework Preset: Vite
+- Root Directory: `frontend`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Environment Variables:
+  - `VITE_API_URL`: Public HTTPS URL of the deployed backend service (e.g., `https://api.dropclock.example.com`).
+
+---
+
+## 9. API Reference
+
+### Create Tracker
+```http
+POST /api/alerts
+Content-Type: application/json
+
+{
+  "bmsUrl": "https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217",
+  "movieName": "",
+  "theatreName": "Prasads Multiplex: Hyderabad",
+  "city": "hyderabad",
+  "targetDate": "17 Dec 2026",
+  "phoneNumber": "9876543210",
+  "notificationMethod": "whatsapp",
+  "watchType": "new_shows"
+}
+```
+
+### List Trackers
+```http
+GET /api/alerts
+```
+
+### Manually Escalate Polling Frequency
+```http
+PATCH /api/alerts/:id/escalate
+Content-Type: application/json
+
+{
+  "phase": "hot"
+}
+```
+
+### Remove Tracker
+```http
+DELETE /api/alerts/:id
+```
+
+### System Health & Telemetry
+```http
+GET /api/alerts/stats/overview
 ```
 
 ---
 
-## Telegram Bot Commands
+## 10. Operational Guidelines
 
-| Command | Description |
-|---------|-------------|
-| `/start` | Welcome message |
-| `/watch MovieName` | Start setting up an alert |
-| `/setalert Movie \| city \| Theatre` | Create an alert |
-| `/alerts` | List your active alerts |
-| `/status` | Dashboard overview |
-| `/escalate <id>` | Switch to HOT mode (30s checks) |
-| `/cancel <id>` | Cancel an alert |
+1. **Rate Limiting**: Automated polling adheres to conservative intervals to maintain platform stability. Direct high-frequency querying is restricted to active "Hot" phases.
+2. **Data Usage**: Dropclock monitors publicly accessible schedule metadata strictly for real-time alerting. It does not automate seat reservation, cart holding, or payment processing.
+3. **Resilience**: The backend incorporates graceful degradation; if remote database access is interrupted during local development, an in-memory replica automatically instantiates.
 
 ---
 
-## Tech Stack
+## 11. License
 
-| Component | Technology |
-|-----------|-----------|
-| Backend | Node.js + Express |
-| Database | MongoDB + Mongoose |
-| Polling Engine | Custom smart poller with 3-phase system |
-| Scraping | Axios + Cheerio (HTML parsing) |
-| Notifications | Telegram Bot API |
-| Frontend | React + Vite + Tailwind CSS |
-| Animations | Framer Motion |
-
----
-
-## Project Structure
-
-```
-movie_ticket_alarm_clock/
-├── backend/
-│   ├── src/
-│   │   ├── server.js              # Main entry point
-│   │   ├── config/
-│   │   │   └── database.js        # MongoDB connection
-│   │   ├── models/
-│   │   │   └── Alert.js           # Alert schema
-│   │   ├── services/
-│   │   │   ├── bmsService.js      # 🔑 BMS API/scraping engine
-│   │   │   ├── pollingService.js  # 🔑 Smart 3-phase poller
-│   │   │   └── notificationService.js  # Telegram notifications
-│   │   └── routes/
-│   │       ├── alerts.js          # REST API for alerts
-│   │       └── telegramBot.js     # Telegram command handler
-│   ├── package.json
-│   └── .env.example
-│
-├── frontend/
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── Home.jsx           # Landing page
-│   │   │   ├── SetAlert.jsx       # Alert creation wizard
-│   │   │   └── Dashboard.jsx      # Alert management
-│   │   ├── components/
-│   │   │   └── Navbar.jsx
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   └── package.json
-│
-└── README.md
-```
-
----
-
-## Disclaimer
-
-This tool checks publicly available information on BookMyShow for personal, non-commercial use. It is not affiliated with or endorsed by BookMyShow. Use responsibly.
-
----
-
-## Contributing
-
-This is a community project. PRs welcome! If BMS changes their page structure (they will), help us fix the scraper.
-
-## License
-
-MIT — Free forever. 🎬
-
+Distributed under the MIT License. Open-source software intended for community utility and educational analysis of distributed scheduling architectures.
