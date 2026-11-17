@@ -14,6 +14,19 @@ const POPULAR_CINEMAS = [
   { name: 'Sudarshan 35MM (RTC X Roads)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/20261217' },
 ];
 
+const formatCinemaName = (raw) => {
+  if (!raw) return '';
+  const lower = raw.trim().toLowerCase();
+  if (lower.includes('aaa')) return 'AAA Cinemas (AAAC)';
+  if (lower.includes('prasad')) return 'Prasads Multiplex (PRHN)';
+  if (lower.includes('amb')) return 'AMB Cinemas (AMBC)';
+  if (lower.includes('pvr') && lower.includes('nexus')) return 'PVR Inox Nexus (PVND)';
+  if (lower.includes('pvr')) return 'PVR Cinemas';
+  if (lower.includes('inox')) return 'INOX Cinemas';
+  if (lower.includes('sudarshan')) return 'Sudarshan 35MM (SUDX)';
+  return raw.trim().replace(/\b[a-z]/g, l => l.toUpperCase());
+};
+
 function SetAlert() {
   const navigate = useNavigate();
   const [mode, setMode] = useState('url'); // 'url' or 'manual'
@@ -79,18 +92,21 @@ function SetAlert() {
     setLoading(true);
     setError('');
 
+    const formattedTheatre = formatCinemaName(form.theatreName) || form.theatreName || 'Selected Multiplex';
+
     try {
       await api.post('/api/alerts', {
         bmsUrl: form.bmsUrl,
         movieName: form.movieName,
         eventCode: 'UNKNOWN',
         city: form.city,
-        theatreName: form.theatreName || 'Selected Multiplex',
+        theatreName: formattedTheatre,
         targetDate: form.targetDate,
         watchType: form.watchType,
         phoneNumber: form.phoneNumber,
         notificationMethod: form.notificationMethod,
       });
+      setForm(prev => ({ ...prev, theatreName: formattedTheatre }));
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to initialize alarm. Please try again.');
@@ -122,7 +138,7 @@ function SetAlert() {
             </div>
             <div className="flex justify-between border-b border-paper/20 py-2">
               <span className="text-acid uppercase">THEATRE</span>
-              <span className="font-bold">{form.theatreName || 'Prasads Multiplex'}</span>
+              <span className="font-bold">{formatCinemaName(form.theatreName) || 'AAA Cinemas (AAAC)'}</span>
             </div>
             <div className="flex justify-between border-b border-paper/20 py-2">
               <span className="text-acid uppercase">DATE</span>
@@ -299,8 +315,22 @@ function SetAlert() {
                 type="text"
                 value={form.theatreName}
                 onChange={e => {
-                  updateField('theatreName', e.target.value);
-                  updateField('bmsUrl', ''); // Clear URL to ensure custom typed name takes priority!
+                  const val = e.target.value;
+                  updateField('theatreName', val);
+                  const lower = val.toLowerCase();
+                  if (lower.includes('aaa')) {
+                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/20261217');
+                  } else if (lower.includes('prasad')) {
+                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217');
+                  } else if (lower.includes('amb')) {
+                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/20261217');
+                  } else if (lower.includes('pvr')) {
+                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/20261217');
+                  } else if (lower.includes('sudarshan')) {
+                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/20261217');
+                  } else {
+                    updateField('bmsUrl', '');
+                  }
                 }}
                 placeholder="e.g. AAA Cinemas Ameerpet, Sudarshan 35MM, PVR"
                 className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm font-bold text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"

@@ -34,6 +34,36 @@ function parseBmsUrl(url) {
 }
 
 /**
+ * Format theatre name to proper title case & recognizable acronyms
+ */
+function formatTheatreName(raw) {
+  if (!raw) return 'Multiplex Cinema';
+  const clean = raw.trim().toLowerCase();
+  if (clean.includes('aaa')) return 'AAA Cinemas (AAAC)';
+  if (clean.includes('prasad')) return 'Prasads Multiplex (PRHN)';
+  if (clean.includes('amb')) return 'AMB Cinemas (AMBC)';
+  if (clean.includes('pvr') && clean.includes('nexus')) return 'PVR Inox Nexus (PVND)';
+  if (clean.includes('pvr')) return 'PVR Cinemas';
+  if (clean.includes('inox')) return 'INOX Cinemas';
+  if (clean.includes('sudarshan')) return 'Sudarshan 35MM (SUDX)';
+  return raw.trim().replace(/\b[a-z]/g, l => l.toUpperCase());
+}
+
+/**
+ * Resolves a direct BookMyShow booking URL if user manually entered cinema name
+ */
+function resolveBmsUrl(theatreName, city = 'hyderabad', targetDate = '20261217') {
+  const clean = (theatreName || '').toLowerCase();
+  const cleanDate = targetDate ? targetDate.replace(/[^0-9]/g, '') : '20261217';
+  if (clean.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${cleanDate}`;
+  if (clean.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${cleanDate}`;
+  if (clean.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${cleanDate}`;
+  if (clean.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${cleanDate}`;
+  if (clean.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${cleanDate}`;
+  return `https://in.bookmyshow.com/explore/cinemas-${city.toLowerCase()}`;
+}
+
+/**
  * POST /api/alerts - Create a new alert
  */
 router.post('/', async (req, res) => {
@@ -60,16 +90,17 @@ router.post('/', async (req, res) => {
 
     const finalMovieName = (movieName && movieName.trim()) ? movieName.trim() : 'Any Show';
     const finalCity = (city || parsed.city || 'hyderabad').toLowerCase();
-    const finalTheatreName = theatreName || parsed.theatreName || 'Multiplex Cinema';
+    const finalTheatreName = formatTheatreName(theatreName || parsed.theatreName);
     const finalVenueCode = venueCode || parsed.venueCode;
     const finalTargetDate = targetDate || parsed.targetDate;
     const finalWatchType = watchType || (bmsUrl ? 'new_shows' : 'booking_open');
+    const finalBmsUrl = bmsUrl || resolveBmsUrl(finalTheatreName, finalCity, finalTargetDate);
 
     // If watching for new shows, fetch the current shows baseline right now
     let initialShows = [];
-    if (bmsUrl) {
+    if (finalBmsUrl) {
       try {
-        const preview = await getCinemaShows({ url: bmsUrl, movieName: finalMovieName });
+        const preview = await getCinemaShows({ url: finalBmsUrl, movieName: finalMovieName });
         initialShows = preview.shows || [];
         console.log(`[API] Captured baseline of ${initialShows.length} shows for new alert`);
       } catch (e) {
@@ -78,7 +109,7 @@ router.post('/', async (req, res) => {
     }
 
     const alert = new Alert({
-      bmsUrl: bmsUrl || null,
+      bmsUrl: finalBmsUrl,
       movieName: finalMovieName,
       eventCode: eventCode || 'UNKNOWN',
       theatreName: finalTheatreName,
@@ -108,15 +139,14 @@ router.post('/', async (req, res) => {
 });
 
 /**
- * GET /api/alerts - Get all alerts (optionally filtered by telegramChatId)
+ * GET /api/alerts - Get all alerts (excludes cancelled/expired by default)
  */
 router.get('/', async (req, res) => {
   try {
     const { chatId, status } = req.query;
-    const filter = {};
+    const filter = status ? { status } : { status: { $ne: 'expired' } };
 
     if (chatId) filter.telegramChatId = chatId;
-    if (status) filter.status = status;
 
     const alerts = await Alert.find(filter).sort({ createdAt: -1 });
     res.json({ alerts, count: alerts.length });
@@ -161,20 +191,17 @@ router.patch('/:id/escalate', async (req, res) => {
 });
 
 /**
- * DELETE /api/alerts/:id - Cancel an alert
+ * DELETE /api/alerts/:id - Permanently delete an alert
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const alert = await Alert.findById(req.params.id);
+    removeFromPolling(req.params.id);
+    const alert = await Alert.findByIdAndDelete(req.params.id);
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
 
-    alert.status = 'expired';
-    await alert.save();
-    removeFromPolling(req.params.id);
-
-    res.json({ message: 'Alert cancelled', alert });
+    res.json({ message: 'Alert deleted permanently', id: req.params.id });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to cancel alert' });
+    res.status(500).json({ error: 'Failed to delete alert' });
   }
 });
 

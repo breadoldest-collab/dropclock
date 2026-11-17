@@ -34,10 +34,37 @@ function Dashboard() {
     } catch {}
   };
 
+  const formatTheatre = (name) => {
+    if (!name) return 'Multiplex Cinema';
+    const lower = name.toLowerCase();
+    if (lower.includes('aaa')) return 'AAA Cinemas (AAAC)';
+    if (lower.includes('prasad')) return 'Prasads Multiplex (PRHN)';
+    if (lower.includes('amb')) return 'AMB Cinemas (AMBC)';
+    if (lower.includes('pvr') && lower.includes('nexus')) return 'PVR Inox Nexus (PVND)';
+    if (lower.includes('pvr')) return 'PVR Cinemas';
+    if (lower.includes('inox')) return 'INOX Cinemas';
+    if (lower.includes('sudarshan')) return 'Sudarshan 35MM (SUDX)';
+    return name.replace(/\b[a-z]/g, l => l.toUpperCase());
+  };
+
+  const getBmsUrl = (alert) => {
+    if (alert.bookingUrl) return alert.bookingUrl;
+    if (alert.bmsUrl) return alert.bmsUrl;
+    const name = (alert.theatreName || '').toLowerCase();
+    const dateNum = (alert.targetDate || '').replace(/[^0-9]/g, '') || '20261217';
+    if (name.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${dateNum}`;
+    if (name.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${dateNum}`;
+    if (name.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${dateNum}`;
+    if (name.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${dateNum}`;
+    if (name.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${dateNum}`;
+    return `https://in.bookmyshow.com/explore/cinemas-${alert.city || 'hyderabad'}`;
+  };
+
   const cancelAlert = async (id) => {
     try {
       await api.delete(`/api/alerts/${id}`);
       setAlerts(prev => prev.filter(a => a._id !== id));
+      fetchStats();
     } catch (err) {
       console.error('Failed to cancel alert:', err);
     }
@@ -176,7 +203,7 @@ function Dashboard() {
                   <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-ink/80">
                     <span className="flex items-center gap-1 font-bold">
                       <MapPin className="w-3.5 h-3.5 text-ink" />
-                      {alert.theatreName}
+                      {formatTheatre(alert.theatreName)}
                     </span>
                     <span>•</span>
                     <span className="uppercase font-bold">{alert.city}</span>
@@ -232,17 +259,15 @@ function Dashboard() {
                     </button>
                   )}
 
-                  {(alert.bmsUrl || alert.bookingUrl) && (
-                    <a
-                      href={alert.bookingUrl || alert.bmsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-hard px-4 py-2 bg-acid text-ink border-2 border-ink rounded-[8px] font-space font-bold uppercase text-xs flex items-center gap-1 shadow-hard-xs"
-                    >
-                      <span>Book on BMS</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  )}
+                  <a
+                    href={getBmsUrl(alert)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-hard px-4 py-2 bg-acid text-ink border-2 border-ink rounded-[8px] font-space font-bold uppercase text-xs flex items-center gap-1 shadow-hard-xs hover:bg-acid/80"
+                  >
+                    <span>Book on BMS</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
 
                   <button
                     onClick={() => cancelAlert(alert._id)}

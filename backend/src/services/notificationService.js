@@ -102,20 +102,20 @@ export async function sendMobileAlert(alert, bookingData) {
   const bookingUrl = bookingData.url || alert.bmsUrl || `https://in.bookmyshow.com/buytickets/${alert.eventCode}`;
   
   const isNewShow = bookingData.isNewShowAlert;
-  const headline = isNewShow ? '🚨 NEW SHOW ADDED! 🚨' : '🚨 BOOKINGS ARE LIVE! 🚨';
+  const headline = isNewShow ? '[DROPCLOCK] NEW SHOWTIME ADDED' : '[DROPCLOCK] BOOKINGS ARE LIVE';
   const showList = bookingData.showtimes?.length > 0 
-    ? (isNewShow ? `🆕 New Show Timings: ${bookingData.showtimes.join(', ')}\n` : `🕐 Shows: ${bookingData.showtimes.slice(0, 4).join(', ')}\n`)
+    ? (isNewShow ? `New Shows: ${bookingData.showtimes.join(', ')}\n` : `Shows: ${bookingData.showtimes.slice(0, 4).join(', ')}\n`)
     : '';
 
   const textMessage = 
 `${headline}
 
-🎥 Movie: ${alert.movieName}
-🏢 Theatre: ${alert.theatreName}
-📍 City: ${alert.city.toUpperCase()}${alert.targetDate ? `\n📅 Date: ${alert.targetDate}` : ''}
+Movie: ${alert.movieName}
+Theatre: ${alert.theatreName}
+City: ${alert.city.toUpperCase()}${alert.targetDate ? `\nDate: ${alert.targetDate}` : ''}
 ${showList}
-⚡ Grab these new seats before anyone else notices:
-👉 ${bookingUrl}`;
+Direct Booking Link:
+${bookingUrl}`;
 
   let success = false;
   const method = alert.notificationMethod || 'whatsapp';
