@@ -82,19 +82,30 @@ router.post('/', async (req, res) => {
       telegramChatId,
     } = req.body;
 
+    let cleanBmsUrl = (bmsUrl || '').trim();
+    let cleanTheatre = (theatreName || '').trim();
+
+    // If user entered cinema name in URL box (e.g. "aaa cinemas" or "Prasads")
+    if (cleanBmsUrl && !cleanBmsUrl.startsWith('http')) {
+      if (!cleanTheatre || cleanTheatre === 'Selected Multiplex') {
+        cleanTheatre = cleanBmsUrl;
+      }
+      cleanBmsUrl = '';
+    }
+
     // Auto-extract details if user provided a BMS URL directly
     let parsed = {};
-    if (bmsUrl) {
-      parsed = parseBmsUrl(bmsUrl);
+    if (cleanBmsUrl) {
+      parsed = parseBmsUrl(cleanBmsUrl);
     }
 
     const finalMovieName = (movieName && movieName.trim()) ? movieName.trim() : 'Any Show';
     const finalCity = (city || parsed.city || 'hyderabad').toLowerCase();
-    const finalTheatreName = formatTheatreName(theatreName || parsed.theatreName);
+    const finalTheatreName = formatTheatreName(cleanTheatre || parsed.theatreName);
     const finalVenueCode = venueCode || parsed.venueCode;
     const finalTargetDate = targetDate || parsed.targetDate;
-    const finalWatchType = watchType || (bmsUrl ? 'new_shows' : 'booking_open');
-    const finalBmsUrl = bmsUrl || resolveBmsUrl(finalTheatreName, finalCity, finalTargetDate);
+    const finalWatchType = watchType || (cleanBmsUrl ? 'new_shows' : 'booking_open');
+    const finalBmsUrl = cleanBmsUrl || resolveBmsUrl(finalTheatreName, finalCity, finalTargetDate);
 
     // If watching for new shows, fetch the current shows baseline right now
     let initialShows = [];

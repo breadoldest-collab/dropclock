@@ -27,6 +27,17 @@ const formatCinemaName = (raw) => {
   return raw.trim().replace(/\b[a-z]/g, l => l.toUpperCase());
 };
 
+const resolveBmsUrlClient = (theatreName, city = 'hyderabad', targetDate = '') => {
+  const clean = (theatreName || '').toLowerCase();
+  const cleanDate = targetDate ? targetDate.replace(/[^0-9]/g, '') : '20261117';
+  if (clean.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${cleanDate}`;
+  if (clean.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${cleanDate}`;
+  if (clean.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${cleanDate}`;
+  if (clean.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${cleanDate}`;
+  if (clean.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${cleanDate}`;
+  return `https://in.bookmyshow.com/explore/cinemas-${(city || 'hyderabad').toLowerCase()}`;
+};
+
 const getUpcomingDates = () => {
   const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -112,28 +123,45 @@ function SetAlert() {
     handleDateSelect(displayDate, bmsDateSlug, isoVal);
   };
 
-  const handleUrlChange = (url) => {
-    updateField('bmsUrl', url);
-    const match = url.match(/\/cinemas\/([^/]+)\/([^/]+)\/buytickets\/([^/]+)\/(\d{8})/i);
-    if (match) {
-      const citySlug = match[1].toLowerCase();
-      const rawTheatre = match[2].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      const dateStr = match[4];
-      const y = dateStr.slice(0, 4);
-      const m = dateStr.slice(4, 6);
-      const d = dateStr.slice(6, 8);
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      const monthName = months[parseInt(m, 10) - 1] || m;
-      const formattedDate = `${d} ${monthName} ${y}`;
-      const iso = `${y}-${m}-${d}`;
+  const handleUrlChange = (val) => {
+    const trimmed = (val || '').trim();
+    updateField('bmsUrl', val);
 
+    if (!trimmed) {
+      updateField('theatreName', '');
+      return;
+    }
+
+    if (trimmed.startsWith('http') || trimmed.includes('bookmyshow.com')) {
+      const match = trimmed.match(/\/cinemas\/([^/]+)\/([^/]+)\/buytickets\/([^/]+)\/(\d{8})/i);
+      if (match) {
+        const citySlug = match[1].toLowerCase();
+        const rawTheatre = match[2].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const dateStr = match[4];
+        const y = dateStr.slice(0, 4);
+        const m = dateStr.slice(4, 6);
+        const d = dateStr.slice(6, 8);
+        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+        const monthName = months[parseInt(m, 10) - 1] || m;
+        const formattedDate = `${d} ${monthName} ${y}`;
+        const iso = `${y}-${m}-${d}`;
+
+        setForm(prev => ({
+          ...prev,
+          bmsUrl: val,
+          city: citySlug,
+          theatreName: formatCinemaName(rawTheatre) || rawTheatre,
+          targetDate: formattedDate,
+          isoDate: iso,
+        }));
+      }
+    } else {
+      // User typed cinema name like "aaa cinemas" or "Prasads"
+      const formatted = formatCinemaName(trimmed) || trimmed;
       setForm(prev => ({
         ...prev,
-        bmsUrl: url,
-        city: citySlug,
-        theatreName: rawTheatre,
-        targetDate: formattedDate,
-        isoDate: iso,
+        bmsUrl: val,
+        theatreName: formatted,
       }));
     }
   };
@@ -154,28 +182,37 @@ function SetAlert() {
     }
 
     if (mode === 'url' && !form.bmsUrl) {
-      setError('Please enter or select a BookMyShow URL.');
+      setError('Please enter a BookMyShow URL or cinema name.');
       return;
     }
 
     setLoading(true);
     setError('');
 
-    const formattedTheatre = formatCinemaName(form.theatreName) || form.theatreName || 'Selected Multiplex';
+    let cleanTheatre = formatCinemaName(form.theatreName) || form.theatreName;
+    if (!cleanTheatre || cleanTheatre === 'Selected Multiplex') {
+      cleanTheatre = formatCinemaName(form.bmsUrl) || 'AAA Cinemas (AAAC)';
+    }
+
+    const cleanDate = form.targetDate ? form.targetDate.replace(/[^0-9]/g, '') : '20261117';
+    let cleanUrl = form.bmsUrl ? form.bmsUrl.trim() : '';
+    if (!cleanUrl.startsWith('http')) {
+      cleanUrl = resolveBmsUrlClient(cleanTheatre, form.city, cleanDate);
+    }
 
     try {
       await api.post('/api/alerts', {
-        bmsUrl: form.bmsUrl,
+        bmsUrl: cleanUrl,
         movieName: form.movieName,
         eventCode: 'UNKNOWN',
         city: form.city,
-        theatreName: formattedTheatre,
+        theatreName: cleanTheatre,
         targetDate: form.targetDate,
         watchType: form.watchType,
         phoneNumber: form.phoneNumber,
         notificationMethod: form.notificationMethod,
       });
-      setForm(prev => ({ ...prev, theatreName: formattedTheatre }));
+      setForm(prev => ({ ...prev, theatreName: cleanTheatre, bmsUrl: cleanUrl }));
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to initialize alarm. Please try again.');
@@ -309,20 +346,20 @@ function SetAlert() {
               </div>
             </div>
 
-            {/* URL Input */}
+            {/* URL or Cinema Input */}
             <div>
               <label className="font-dela text-sm uppercase text-ink block mb-2">
-                BookMyShow Cinema URL:
+                BookMyShow Cinema URL or Multiplex Name:
               </label>
               <input
-                type="url"
+                type="text"
                 value={form.bmsUrl}
                 onChange={e => handleUrlChange(e.target.value)}
-                placeholder="https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217"
+                placeholder="Paste BookMyShow link or type e.g. AAA Cinemas, Prasads, PVR..."
                 className="w-full px-4 py-3.5 bg-paper border-2 border-ink rounded-[12px] font-mono text-xs md:text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20 focus:border-ink shadow-hard-xs"
               />
               <p className="font-mono text-[11px] text-ink/60 mt-1.5">
-                Paste the URL for your cinema on the specific booking date.
+                Paste a BookMyShow URL or simply type your cinema name.
               </p>
             </div>
 

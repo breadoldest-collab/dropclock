@@ -34,9 +34,10 @@ function Dashboard() {
     } catch {}
   };
 
-  const formatTheatre = (name) => {
-    if (!name) return 'Multiplex Cinema';
-    const lower = name.toLowerCase();
+  const formatTheatre = (theatreName, bmsUrl = '') => {
+    const raw = (theatreName === 'Selected Multiplex' && bmsUrl) ? bmsUrl : (theatreName || bmsUrl);
+    if (!raw) return 'Multiplex Cinema';
+    const lower = raw.toLowerCase();
     if (lower.includes('aaa')) return 'AAA Cinemas (AAAC)';
     if (lower.includes('prasad')) return 'Prasads Multiplex (PRHN)';
     if (lower.includes('amb')) return 'AMB Cinemas (AMBC)';
@@ -44,19 +45,22 @@ function Dashboard() {
     if (lower.includes('pvr')) return 'PVR Cinemas';
     if (lower.includes('inox')) return 'INOX Cinemas';
     if (lower.includes('sudarshan')) return 'Sudarshan 35MM (SUDX)';
-    return name.replace(/\b[a-z]/g, l => l.toUpperCase());
+    if (theatreName && theatreName !== 'Selected Multiplex') {
+      return theatreName.replace(/\b[a-z]/g, l => l.toUpperCase());
+    }
+    return raw.replace(/\b[a-z]/g, l => l.toUpperCase());
   };
 
   const getBmsUrl = (alert) => {
-    if (alert.bookingUrl) return alert.bookingUrl;
-    if (alert.bmsUrl) return alert.bmsUrl;
-    const name = (alert.theatreName || '').toLowerCase();
-    const dateNum = (alert.targetDate || '').replace(/[^0-9]/g, '') || '20261217';
-    if (name.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${dateNum}`;
-    if (name.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${dateNum}`;
-    if (name.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${dateNum}`;
-    if (name.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${dateNum}`;
-    if (name.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${dateNum}`;
+    if (alert.bookingUrl && alert.bookingUrl.startsWith('http')) return alert.bookingUrl;
+    if (alert.bmsUrl && alert.bmsUrl.startsWith('http')) return alert.bmsUrl;
+    const raw = `${alert.theatreName || ''} ${alert.bmsUrl || ''}`.toLowerCase();
+    const dateNum = (alert.targetDate || '').replace(/[^0-9]/g, '') || '20261117';
+    if (raw.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${dateNum}`;
+    if (raw.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${dateNum}`;
+    if (raw.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${dateNum}`;
+    if (raw.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${dateNum}`;
+    if (raw.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${dateNum}`;
     return `https://in.bookmyshow.com/explore/cinemas-${alert.city || 'hyderabad'}`;
   };
 
@@ -203,7 +207,7 @@ function Dashboard() {
                   <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-ink/80">
                     <span className="flex items-center gap-1 font-bold">
                       <MapPin className="w-3.5 h-3.5 text-ink" />
-                      {formatTheatre(alert.theatreName)}
+                      {formatTheatre(alert.theatreName, alert.bmsUrl)}
                     </span>
                     <span>•</span>
                     <span className="uppercase font-bold">{alert.city}</span>
