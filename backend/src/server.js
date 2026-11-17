@@ -28,6 +28,20 @@ app.use(express.json());
 // ─── Routes ─────────────────────────────────────────────
 app.use('/api/alerts', alertRoutes);
 
+// Root status
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'Dropclock API',
+    description: '24/7 BookMyShow Ticket Drop Alarm & Poller',
+    health: '/api/health',
+    endpoints: {
+      alerts: '/api/alerts',
+      stats: '/api/alerts/stats/overview',
+    },
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
