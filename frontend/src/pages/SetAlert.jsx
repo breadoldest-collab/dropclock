@@ -27,6 +27,42 @@ const formatCinemaName = (raw) => {
   return raw.trim().replace(/\b[a-z]/g, l => l.toUpperCase());
 };
 
+const getUpcomingDates = () => {
+  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  
+  const dates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const dayLabel = i === 0 ? 'TODAY' : i === 1 ? 'TOM' : days[d.getDay()];
+    const dateNum = String(d.getDate()).padStart(2, '0');
+    const monthStr = months[d.getMonth()];
+    const year = d.getFullYear();
+    return {
+      label: dayLabel,
+      dayNum: dateNum,
+      month: monthStr,
+      displayDate: `${dateNum} ${monthStr} ${year}`,
+      bmsDateSlug: `${year}${String(d.getMonth() + 1).padStart(2, '0')}${dateNum}`,
+      isoDate: `${year}-${String(d.getMonth() + 1).padStart(2, '0')}-${dateNum}`,
+    };
+  });
+
+  // Add blockbuster drop preset
+  dates.push({
+    label: 'DOOMSDAY',
+    dayNum: '17',
+    month: 'DEC 26',
+    displayDate: '17 DEC 2026',
+    bmsDateSlug: '20261217',
+    isoDate: '2026-12-17',
+  });
+
+  return dates;
+};
+
+const UPCOMING_DATES = getUpcomingDates();
+
 function SetAlert() {
   const navigate = useNavigate();
   const [mode, setMode] = useState('url'); // 'url' or 'manual'
@@ -37,7 +73,8 @@ function SetAlert() {
   const [form, setForm] = useState({
     bmsUrl: '',
     movieName: '',
-    targetDate: '',
+    targetDate: UPCOMING_DATES[0].displayDate,
+    isoDate: UPCOMING_DATES[0].isoDate,
     city: 'hyderabad',
     theatreName: '',
     phoneNumber: '',
@@ -50,6 +87,31 @@ function SetAlert() {
     setError('');
   };
 
+  const handleDateSelect = (displayDate, bmsDateSlug, isoDate) => {
+    setForm(prev => {
+      let updatedUrl = prev.bmsUrl;
+      if (updatedUrl && bmsDateSlug) {
+        updatedUrl = updatedUrl.replace(/\/(\d{8})(\/?)$/, `/${bmsDateSlug}$2`);
+      }
+      return {
+        ...prev,
+        targetDate: displayDate,
+        isoDate: isoDate || prev.isoDate,
+        bmsUrl: updatedUrl,
+      };
+    });
+  };
+
+  const handleCalendarChange = (isoVal) => {
+    if (!isoVal) return;
+    const [year, month, day] = isoVal.split('-');
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const monthName = months[parseInt(month, 10) - 1] || month;
+    const displayDate = `${day} ${monthName} ${year}`;
+    const bmsDateSlug = `${year}${month}${day}`;
+    handleDateSelect(displayDate, bmsDateSlug, isoVal);
+  };
+
   const handleUrlChange = (url) => {
     updateField('bmsUrl', url);
     const match = url.match(/\/cinemas\/([^/]+)\/([^/]+)\/buytickets\/([^/]+)\/(\d{8})/i);
@@ -57,7 +119,13 @@ function SetAlert() {
       const citySlug = match[1].toLowerCase();
       const rawTheatre = match[2].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       const dateStr = match[4];
-      const formattedDate = `${dateStr.slice(6, 8)}/${dateStr.slice(4, 6)}/${dateStr.slice(0, 4)}`;
+      const y = dateStr.slice(0, 4);
+      const m = dateStr.slice(4, 6);
+      const d = dateStr.slice(6, 8);
+      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const monthName = months[parseInt(m, 10) - 1] || m;
+      const formattedDate = `${d} ${monthName} ${y}`;
+      const iso = `${y}-${m}-${d}`;
 
       setForm(prev => ({
         ...prev,
@@ -65,6 +133,7 @@ function SetAlert() {
         city: citySlug,
         theatreName: rawTheatre,
         targetDate: formattedDate,
+        isoDate: iso,
       }));
     }
   };
@@ -266,6 +335,63 @@ function SetAlert() {
               </div>
             )}
 
+            {/* BMS-STYLE DATE SELECTOR */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-dela text-xs uppercase text-ink flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-ink" />
+                  Target Booking Date:
+                </label>
+                {form.targetDate && (
+                  <span className="bg-acid px-2.5 py-0.5 border border-ink rounded font-mono text-[11px] font-bold text-ink shadow-hard-xs">
+                    {form.targetDate}
+                  </span>
+                )}
+              </div>
+
+              {/* Day Pills Bar */}
+              <div className="flex gap-2 overflow-x-auto pb-2 pt-1">
+                {UPCOMING_DATES.map((item, idx) => {
+                  const isSelected = form.targetDate === item.displayDate;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleDateSelect(item.displayDate, item.bmsDateSlug, item.isoDate)}
+                      className={`flex flex-col items-center justify-center min-w-[70px] py-2 px-2.5 rounded-[12px] border-2 border-ink text-center transition-all ${
+                        isSelected 
+                          ? 'bg-acid shadow-hard-xs scale-[1.03] font-bold' 
+                          : 'bg-paper hover:bg-acid/30 shadow-hard-xs'
+                      }`}
+                    >
+                      <span className="font-mono text-[9px] font-bold text-ink/70 uppercase">
+                        {item.label}
+                      </span>
+                      <span className="font-dela text-base text-ink leading-tight my-0.5">
+                        {item.dayNum}
+                      </span>
+                      <span className="font-mono text-[9px] text-ink font-bold uppercase">
+                        {item.month}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Date Input for Any Future Release */}
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="font-mono text-[10px] text-ink/70 font-bold uppercase shrink-0">
+                  Or Pick Calendar Date:
+                </span>
+                <input
+                  type="date"
+                  value={form.isoDate || ''}
+                  onChange={e => handleCalendarChange(e.target.value)}
+                  className="flex-1 px-3.5 py-2 bg-paper border-2 border-ink rounded-[10px] font-mono text-xs font-bold text-ink shadow-hard-xs focus:outline-none focus:bg-acid/20 cursor-pointer"
+                />
+              </div>
+            </div>
+
             {/* Optional Movie Filter */}
             <div>
               <label className="font-dela text-xs uppercase text-ink flex items-center justify-between mb-1.5">
@@ -337,29 +463,72 @@ function SetAlert() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-dela text-xs uppercase text-ink block mb-1">
-                  Movie Name (Optional):
+            <div>
+              <label className="font-dela text-xs uppercase text-ink block mb-1">
+                Movie Name (Optional):
+              </label>
+              <input
+                type="text"
+                value={form.movieName}
+                onChange={e => updateField('movieName', e.target.value)}
+                placeholder="Enter title (or leave blank for any movie)"
+                className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"
+              />
+            </div>
+
+            {/* BMS-STYLE DATE SELECTOR */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-dela text-xs uppercase text-ink flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-ink" />
+                  Target Booking Date:
                 </label>
-                <input
-                  type="text"
-                  value={form.movieName}
-                  onChange={e => updateField('movieName', e.target.value)}
-                  placeholder="Enter title (or leave blank for any movie)"
-                  className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"
-                />
+                {form.targetDate && (
+                  <span className="bg-acid px-2.5 py-0.5 border border-ink rounded font-mono text-[11px] font-bold text-ink shadow-hard-xs">
+                    {form.targetDate}
+                  </span>
+                )}
               </div>
-              <div>
-                <label className="font-dela text-xs uppercase text-ink block mb-1">
-                  Target Date:
-                </label>
+
+              {/* Day Pills Bar */}
+              <div className="flex gap-2 overflow-x-auto pb-2 pt-1">
+                {UPCOMING_DATES.map((item, idx) => {
+                  const isSelected = form.targetDate === item.displayDate;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleDateSelect(item.displayDate, item.bmsDateSlug, item.isoDate)}
+                      className={`flex flex-col items-center justify-center min-w-[70px] py-2 px-2.5 rounded-[12px] border-2 border-ink text-center transition-all ${
+                        isSelected 
+                          ? 'bg-acid shadow-hard-xs scale-[1.03] font-bold' 
+                          : 'bg-paper hover:bg-acid/30 shadow-hard-xs'
+                      }`}
+                    >
+                      <span className="font-mono text-[9px] font-bold text-ink/70 uppercase">
+                        {item.label}
+                      </span>
+                      <span className="font-dela text-base text-ink leading-tight my-0.5">
+                        {item.dayNum}
+                      </span>
+                      <span className="font-mono text-[9px] text-ink font-bold uppercase">
+                        {item.month}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Date Input for Any Future Release */}
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="font-mono text-[10px] text-ink/70 font-bold uppercase shrink-0">
+                  Or Pick Calendar Date:
+                </span>
                 <input
-                  type="text"
-                  value={form.targetDate}
-                  onChange={e => updateField('targetDate', e.target.value)}
-                  placeholder="17 Dec 2026"
-                  className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-mono text-sm text-ink focus:outline-none focus:bg-acid/20"
+                  type="date"
+                  value={form.isoDate || ''}
+                  onChange={e => handleCalendarChange(e.target.value)}
+                  className="flex-1 px-3.5 py-2 bg-paper border-2 border-ink rounded-[10px] font-mono text-xs font-bold text-ink shadow-hard-xs focus:outline-none focus:bg-acid/20 cursor-pointer"
                 />
               </div>
             </div>
