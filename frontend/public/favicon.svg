@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Brutalist Black Card Background -->
+  <rect width="64" height="64" rx="16" fill="#09090B" stroke="#09090B" stroke-width="2"/>
+  
+  <!-- Outer Alarm Bell Ears -->
+  <path d="M15 13 L23 21" stroke="#D2E823" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M49 13 L41 21" stroke="#D2E823" stroke-width="4.5" stroke-linecap="round"/>
+  
+  <!-- Clock Body -->
+  <circle cx="32" cy="34" r="20" fill="#09090B" stroke="#D2E823" stroke-width="4.5"/>
+  
+  <!-- Clock Hands (Targeting 12:00 Drop Time) -->
+  <polyline points="32 21 32 34 42 34" stroke="#D2E823" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Center Core Pin -->
+  <circle cx="32" cy="34" r="3" fill="#FFFFFF"/>
+</svg>

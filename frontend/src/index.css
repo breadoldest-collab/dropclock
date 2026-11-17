@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* TV News Breaking Ticker Animation */
+.tv-ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  background-color: #09090B;
+  border-bottom: 2px solid #09090B;
+  white-space: nowrap;
+  position: relative;
+  z-index: 40;
+}
+
+.tv-ticker-content {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: tvNewsScroll 28s linear infinite;
+  will-change: transform;
+}
+
+.tv-ticker-wrap:hover .tv-ticker-content {
+  animation-play-state: paused;
+}
+
+@keyframes tvNewsScroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* Highlighter marker effect behind text */
+.marker-highlight {
+  position: relative;
+  display: inline-block;
+  z-index: 1;
+}
+
+.marker-highlight::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 45%;
+  height: 38%;
+  background-color: #D2E823;
+  z-index: -1;
+  transform: rotate(-0.8deg);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+/* Global SVG Noise Overlay at 3% opacity */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Glitch text animation on hover */
+.glitch-hover:hover {
+  animation: glitch 0.3s infinite;
+}
+
+@keyframes glitch {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* Radial dot pattern for texture (1px dots every 20px) */
+.pattern-dots {
+  background-image: radial-gradient(#09090B 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Hard button click simulation */
+.btn-hard {
+  border: 2px solid #09090B;
+  box-shadow: 4px 4px 0px 0px #09090B;
+  transition: all 0.1s ease-in-out;
+}
+
+.btn-hard:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px 0px #09090B;
+}
+
+.btn-hard:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0px 0px 0px 0px #09090B;
+}
+
+/* Card hover translation & shadow loss */
+.card-hard {
+  border: 2px solid #09090B;
+  box-shadow: 6px 6px 0px 0px #09090B;
+  transition: all 0.15s ease-in-out;
+}
+
+.card-hard:hover {
+  transform: translate(4px, 4px);
+  box-shadow: 0px 0px 0px 0px #09090B;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #F8F4E8;
+  border-left: 2px solid #09090B;
+}
+::-webkit-scrollbar-thumb {
+  background: #D2E823;
+  border: 2px solid #09090B;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #09090B;
+}
+

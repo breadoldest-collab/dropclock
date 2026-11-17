@@ -1,0 +1,210 @@
+/**
+ * Alert API Routes
+ * 
+ * REST API for the web frontend to create/manage alerts.
+ * The Telegram bot uses the same Alert model directly.
+ */
+
+import { Router } from 'express';
+import Alert from '../models/Alert.js';
+import { addToPolling, removeFromPolling, getPollingStats } from '../services/pollingService.js';
+import { getCinemaShows } from '../services/bmsService.js';
+
+const router = Router();
+
+/**
+ * Helper to parse a BMS buytickets URL
+ * e.g. https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217
+ */
+function parseBmsUrl(url) {
+  if (!url) return {};
+  try {
+    const match = url.match(/\/cinemas\/([^/]+)\/([^/]+)\/buytickets\/([^/]+)\/(\d{8})/);
+    if (match) {
+      return {
+        city: match[1].toLowerCase(),
+        cinemaSlug: match[2],
+        theatreName: match[2].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        venueCode: match[3],
+        targetDate: match[4],
+      };
+    }
+  } catch {}
+  return {};
+}
+
+/**
+ * POST /api/alerts - Create a new alert
+ */
+router.post('/', async (req, res) => {
+  try {
+    const { 
+      bmsUrl,
+      movieName, 
+      eventCode, 
+      theatreName, 
+      venueCode, 
+      city, 
+      targetDate,
+      watchType,
+      phoneNumber,
+      notificationMethod,
+      telegramChatId,
+    } = req.body;
+
+    // Auto-extract details if user provided a BMS URL directly
+    let parsed = {};
+    if (bmsUrl) {
+      parsed = parseBmsUrl(bmsUrl);
+    }
+
+    const finalMovieName = (movieName && movieName.trim()) ? movieName.trim() : 'Any Show';
+    const finalCity = (city || parsed.city || 'hyderabad').toLowerCase();
+    const finalTheatreName = theatreName || parsed.theatreName || 'Multiplex Cinema';
+    const finalVenueCode = venueCode || parsed.venueCode;
+    const finalTargetDate = targetDate || parsed.targetDate;
+    const finalWatchType = watchType || (bmsUrl ? 'new_shows' : 'booking_open');
+
+    // If watching for new shows, fetch the current shows baseline right now
+    let initialShows = [];
+    if (bmsUrl) {
+      try {
+        const preview = await getCinemaShows({ url: bmsUrl, movieName: finalMovieName });
+        initialShows = preview.shows || [];
+        console.log(`[API] Captured baseline of ${initialShows.length} shows for new alert`);
+      } catch (e) {
+        console.warn('[API] Could not fetch immediate baseline, will fetch during first poll');
+      }
+    }
+
+    const alert = new Alert({
+      bmsUrl: bmsUrl || null,
+      movieName: finalMovieName,
+      eventCode: eventCode || 'UNKNOWN',
+      theatreName: finalTheatreName,
+      venueCode: finalVenueCode,
+      city: finalCity,
+      targetDate: finalTargetDate,
+      watchType: finalWatchType,
+      knownShows: initialShows,
+      phoneNumber: phoneNumber || null,
+      notificationMethod: notificationMethod || 'whatsapp',
+      telegramChatId: telegramChatId || null,
+      status: 'watching',
+      pollPhase: 'hot', // Default to hot (30s) when monitoring imminent new shows!
+    });
+
+    await alert.save();
+    addToPolling(alert);
+
+    res.status(201).json({ 
+      message: 'Alert created! Watching for new shows...',
+      alert,
+    });
+  } catch (error) {
+    console.error('[API] Create alert error:', error);
+    res.status(500).json({ error: 'Failed to create alert' });
+  }
+});
+
+/**
+ * GET /api/alerts - Get all alerts (optionally filtered by telegramChatId)
+ */
+router.get('/', async (req, res) => {
+  try {
+    const { chatId, status } = req.query;
+    const filter = {};
+
+    if (chatId) filter.telegramChatId = chatId;
+    if (status) filter.status = status;
+
+    const alerts = await Alert.find(filter).sort({ createdAt: -1 });
+    res.json({ alerts, count: alerts.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch alerts' });
+  }
+});
+
+/**
+ * GET /api/alerts/:id - Get a specific alert
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const alert = await Alert.findById(req.params.id);
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    res.json({ alert });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch alert' });
+  }
+});
+
+/**
+ * PATCH /api/alerts/:id/escalate - Escalate alert phase
+ */
+router.patch('/:id/escalate', async (req, res) => {
+  try {
+    const { phase } = req.body;
+    const alert = await Alert.findById(req.params.id);
+    
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    if (alert.status !== 'watching') {
+      return res.status(400).json({ error: 'Alert is not active' });
+    }
+
+    alert.pollPhase = phase || 'hot';
+    await alert.save();
+
+    res.json({ message: `Escalated to ${alert.pollPhase}`, alert });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to escalate alert' });
+  }
+});
+
+/**
+ * DELETE /api/alerts/:id - Cancel an alert
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const alert = await Alert.findById(req.params.id);
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+
+    alert.status = 'expired';
+    await alert.save();
+    removeFromPolling(req.params.id);
+
+    res.json({ message: 'Alert cancelled', alert });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to cancel alert' });
+  }
+});
+
+/**
+ * GET /api/stats - Get polling stats
+ */
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const totalWatching = await Alert.countDocuments({ status: 'watching' });
+    const totalTriggered = await Alert.countDocuments({ status: 'triggered' });
+    const pollingStats = getPollingStats();
+
+    // Get top watched movies
+    const topMovies = await Alert.aggregate([
+      { $match: { status: 'watching' } },
+      { $group: { _id: '$movieName', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]);
+
+    res.json({
+      watching: totalWatching,
+      triggered: totalTriggered,
+      activePollers: pollingStats.activeTimers,
+      topMovies,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+export default router;
+

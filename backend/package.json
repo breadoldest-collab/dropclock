@@ -1,0 +1,35 @@
+{
+  "name": "bms-notifier-backend",
+  "version": "1.0.0",
+  "description": "Movie Ticket Alarm Clock - Never miss a blockbuster booking again",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test:sim": "node src/scripts/testSimulation.js",
+    "poll": "node src/jobs/pollBMS.js"
+  },
+  "keywords": [
+    "bookmyshow",
+    "ticket",
+    "notifier",
+    "alarm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.7.0",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "mongoose": "^8.8.0",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "user-agents": "^1.1.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.3.0"
+  }
+}
