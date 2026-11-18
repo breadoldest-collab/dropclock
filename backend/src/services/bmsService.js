@@ -289,9 +289,77 @@ export async function getTheatres(city = 'hyderabad') {
 const serpApiCache = new Map();
 const SERPAPI_CACHE_TTL_MS = 25 * 60 * 1000;
 
+const MONTHS_SHORT = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/**
+ * Parse a targetDate string ("17 DEC 2026", "20261217", "2026-12-17") into { day, month }
+ */
+function parseTargetDayMonth(targetDate) {
+  if (!targetDate) return null;
+  const str = String(targetDate).trim();
+
+  // "17 DEC 2026" or "17 Dec"
+  let m = str.match(/^(\d{1,2})\s+([a-z]{3,})/i);
+  if (m) {
+    const month = m[2].slice(0, 3).toLowerCase();
+    if (MONTHS_SHORT.includes(month)) return { day: parseInt(m[1], 10), month };
+  }
+
+  // "Dec 17" or "DEC 17 2026"
+  m = str.match(/^([a-z]{3,})\s+(\d{1,2})/i);
+  if (m) {
+    const month = m[1].slice(0, 3).toLowerCase();
+    if (MONTHS_SHORT.includes(month)) return { day: parseInt(m[2], 10), month };
+  }
+
+  // "20261217"
+  m = str.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) {
+    const monthIdx = parseInt(m[2], 10) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) return { day: parseInt(m[3], 10), month: MONTHS_SHORT[monthIdx] };
+  }
+
+  // "2026-12-17"
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const monthIdx = parseInt(m[2], 10) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) return { day: parseInt(m[3], 10), month: MONTHS_SHORT[monthIdx] };
+  }
+
+  return null;
+}
+
+/**
+ * Check if a SerpApi showtimes dayBlock matches the alert's targetDate
+ * Prevents future unopened dates (e.g. 17 DEC 2026) from pulling today's showtimes.
+ */
+function matchesTargetDate(dayBlock, targetParsed) {
+  if (!targetParsed) return true;
+
+  if (dayBlock.date) {
+    const blockParsed = parseTargetDayMonth(dayBlock.date);
+    if (blockParsed) {
+      return blockParsed.day === targetParsed.day && blockParsed.month === targetParsed.month;
+    }
+  }
+
+  // Fallback to "Today" / "Tomorrow" in IST (UTC+5:30)
+  const dayLabel = (dayBlock.day || '').toLowerCase().trim();
+  if (dayLabel === 'today' || dayLabel === 'tomorrow') {
+    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    if (dayLabel === 'tomorrow') istNow.setUTCDate(istNow.getUTCDate() + 1);
+    const istDay = istNow.getUTCDate();
+    const istMonth = MONTHS_SHORT[istNow.getUTCMonth()];
+    return istDay === targetParsed.day && istMonth === targetParsed.month;
+  }
+
+  return false;
+}
+
 /**
  * Fetch live showtimes via SerpApi (Google Showtimes Knowledge Graph)
  * - Uses cinema-centric query + 25m shared cache so multiple alerts on the same theatre share 1 credit
+ * - Strictly filters dayBlocks by targetDate so future unopened dates return 0 shows until opened
  */
 export async function getShowtimesFromSerpApi({ theatreName, movieName, city = 'hyderabad', targetDate }) {
   const apiKey = process.env.SERPAPI_API_KEY;
@@ -300,6 +368,7 @@ export async function getShowtimesFromSerpApi({ theatreName, movieName, city = '
   const cleanTheatre = (theatreName || '').split('(')[0].trim();
   const cleanCity = (city || 'hyderabad').toLowerCase().trim();
   const cleanMovie = movieName && movieName.toLowerCase() !== 'any show' ? movieName.trim() : '';
+  const targetParsed = parseTargetDayMonth(targetDate);
   const cacheKey = `${cleanTheatre.toLowerCase()}|${cleanCity}`;
 
   try {
@@ -336,6 +405,10 @@ export async function getShowtimesFromSerpApi({ theatreName, movieName, city = '
     const extracted = [];
 
     for (const dayBlock of showtimesData) {
+      if (!matchesTargetDate(dayBlock, targetParsed)) {
+        continue;
+      }
+
       const theaters = dayBlock.theaters || [];
       for (const th of theaters) {
         const thName = (th.name || '').toLowerCase();
@@ -352,20 +425,24 @@ export async function getShowtimesFromSerpApi({ theatreName, movieName, city = '
       // Cinema-centric response: dayBlock.movies lists every movie playing at that theatre
       const movies = dayBlock.movies || [];
       for (const mv of movies) {
-        const mvTitle = (mv.name || '').toLowerCase();
+        const mvName = (mv.name || '').trim();
+        const mvTitle = mvName.toLowerCase();
         if (!cleanMovie || mvTitle.includes(cleanMovie.toLowerCase())) {
           const showingList = mv.showing || [];
           for (const s of showingList) {
             if (Array.isArray(s.time)) {
-              extracted.push(...s.time);
+              for (const t of s.time) {
+                const cleanTime = String(t).trim().toUpperCase();
+                extracted.push(mvName ? `${mvName} (${cleanTime})` : cleanTime);
+              }
             }
           }
         }
       }
     }
 
-    const uniqueShows = [...new Set(extracted.map(t => String(t).trim().toUpperCase()))];
-    console.log(`[Showtimes API] Found ${uniqueShows.length} matching showtimes for "${cleanMovie || 'Any Show'}" @ ${cleanTheatre}`);
+    const uniqueShows = [...new Set(extracted.map(t => String(t).trim()))];
+    console.log(`[Showtimes API] Found ${uniqueShows.length} matching showtimes for "${cleanMovie || 'Any Show'}" @ ${cleanTheatre} on ${targetDate || 'any date'}`);
     return {
       shows: uniqueShows,
       theatreName,

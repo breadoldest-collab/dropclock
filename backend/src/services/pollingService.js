@@ -44,6 +44,7 @@ const activeTimers = new Map();
 function needsUrlRepair(url) {
   if (!url) return true;
   if (!url.startsWith('http://') && !url.startsWith('https://')) return true;
+  // Catch old guessed venue codes (AAAC/AMBC/PVND/SUDX), generic explore fallback, or malformed 6-digit dates
   return /\/(AAAC|AMBC|PVND|SUDX)\/|\/explore\/cinemas-|\/\d{6}$/i.test(url);
 }
 

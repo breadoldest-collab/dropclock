@@ -194,10 +194,10 @@ export async function findRealBmsUrlViaSerpApi(query, city = 'hyderabad') {
     const res = await axios.get('https://serpapi.com/search.json', {
       params: {
         engine: 'google',
-        q: `site:in.bookmyshow.com/cinemas ${query}`,
+        q: `site:in.bookmyshow.com ${query} cinema`,
         gl: 'in',
         hl: 'en',
-        num: 3,
+        num: 5,
         api_key: apiKey,
       },
       timeout: 10000,
@@ -205,7 +205,11 @@ export async function findRealBmsUrlViaSerpApi(query, city = 'hyderabad') {
 
     const organic = res.data?.organic_results || [];
     const bmsResult = organic.find(
-      r => r.link && r.link.includes('in.bookmyshow.com/cinemas/')
+      r =>
+        r.link &&
+        r.link.includes('in.bookmyshow.com/') &&
+        (r.link.includes('/cinemas/') || r.link.includes('/buytickets/')) &&
+        !r.link.includes('/explore/')
     );
 
     if (bmsResult) {

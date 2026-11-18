@@ -276,6 +276,58 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
+ * POST /api/alerts/repair-all - Force-heal ALL alerts in DB with broken URLs or theatre names
+ * Call this once after deploy if dashboard shows old test data.
+ */
+router.post('/repair-all', async (req, res) => {
+  try {
+    const allAlerts = await Alert.find({ status: { $ne: 'expired' } });
+    const results = [];
+
+    for (const alert of allAlerts) {
+      const badUrl = !alert.bmsUrl ||
+        !alert.bmsUrl.startsWith('http') ||
+        /\/(AAAC|AMBC|PVND|SUDX)\/|\/explore\/cinemas-|\/\d{6}$/i.test(alert.bmsUrl);
+
+      // Also flag alerts with clearly test/broken theatre names
+      const badTheatre = !alert.theatreName ||
+        alert.theatreName === 'Selected Multiplex' ||
+        alert.theatreName === 'Avt Cinemas';
+
+      if (badUrl || badTheatre) {
+        const query = (alert.theatreName && alert.theatreName !== 'Selected Multiplex')
+          ? alert.theatreName
+          : alert.bmsUrl;
+
+        if (!query) {
+          results.push({ id: alert._id, status: 'skipped', reason: 'no query' });
+          continue;
+        }
+
+        const healed = await resolveTheatre(query, alert.city || 'hyderabad');
+        if (healed?.bmsUrl) {
+          const before = { theatreName: alert.theatreName, bmsUrl: alert.bmsUrl };
+          alert.theatreName = healed.theatreName;
+          alert.bmsUrl = healed.bmsUrl;
+          if (alert.bookingUrl) alert.bookingUrl = healed.bmsUrl;
+          await alert.save();
+          results.push({ id: alert._id, status: 'healed', before, after: { theatreName: alert.theatreName, bmsUrl: alert.bmsUrl } });
+        } else {
+          results.push({ id: alert._id, status: 'unresolved', query });
+        }
+      } else {
+        results.push({ id: alert._id, status: 'ok', theatreName: alert.theatreName });
+      }
+    }
+
+    res.json({ repaired: results.filter(r => r.status === 'healed').length, total: allAlerts.length, results });
+  } catch (error) {
+    console.error('[Repair] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/stats - Get polling stats
  */
 router.get('/stats/overview', async (req, res) => {
