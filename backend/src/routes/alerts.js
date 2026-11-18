@@ -182,8 +182,8 @@ router.post('/test-dispatch', async (req, res) => {
       phoneNumber: phoneNumber || '9381148844',
       notificationMethod: method || 'all',
     };
-    const sent = await sendAlarmArmedNotification(testAlert);
-    res.json({ success: sent, message: 'Test notification dispatched' });
+    const result = await sendAlarmArmedNotification(testAlert);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

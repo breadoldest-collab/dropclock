@@ -27,20 +27,26 @@ const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+
  * Send SMS directly to a mobile number
  */
 export async function sendSMS(toPhone, message) {
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+
+  if (!accountSid || !authToken || !fromNumber) {
     console.log(`[SMS - Simulation] 📱 To: ${toPhone}\nMessage: ${message}`);
-    return true;
+    return { success: true, simulated: true };
   }
 
   try {
-    const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
     const params = new URLSearchParams();
-    params.append('To', toPhone.startsWith('+') ? toPhone : `+91${toPhone}`);
-    params.append('From', TWILIO_PHONE_NUMBER);
+    const cleanTo = toPhone.trim().replace(/\D/g, '');
+    const formattedTo = toPhone.startsWith('+') ? toPhone : (cleanTo.length === 10 ? `+91${cleanTo}` : `+${cleanTo}`);
+    params.append('To', formattedTo);
+    params.append('From', fromNumber);
     params.append('Body', message);
 
-    await axios.post(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+    const res = await axios.post(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       params,
       {
         headers: {
@@ -49,11 +55,12 @@ export async function sendSMS(toPhone, message) {
         },
       }
     );
-    console.log(`[SMS] ✅ Message sent to ${toPhone}`);
-    return true;
+    console.log(`[SMS] Message sent to ${toPhone}, sid:`, res.data?.sid);
+    return { success: true, sid: res.data?.sid };
   } catch (error) {
-    console.error(`[SMS] ❌ Failed to send SMS to ${toPhone}:`, error.response?.data || error.message);
-    return false;
+    const errData = error.response?.data || error.message;
+    console.error(`[SMS] Failed to send SMS to ${toPhone}:`, errData);
+    return { success: false, error: errData };
   }
 }
 
@@ -61,21 +68,28 @@ export async function sendSMS(toPhone, message) {
  * Send WhatsApp message directly to a mobile number
  */
 export async function sendWhatsApp(toPhone, message) {
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+17372508034';
+
+  if (!accountSid || !authToken) {
     console.log(`[WhatsApp - Simulation] 💬 To: ${toPhone}\nMessage:\n${message}`);
-    return true;
+    return { success: true, simulated: true };
   }
 
   try {
-    const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
-    const formattedTo = toPhone.startsWith('+') ? toPhone : `+91${toPhone}`;
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+    const cleanTo = toPhone.trim().replace(/\D/g, '');
+    const formattedTo = toPhone.startsWith('+') ? toPhone : (cleanTo.length === 10 ? `+91${cleanTo}` : `+${cleanTo}`);
+    const from = whatsappNumber.startsWith('whatsapp:') ? whatsappNumber : `whatsapp:${whatsappNumber}`;
+
     const params = new URLSearchParams();
     params.append('To', `whatsapp:${formattedTo}`);
-    params.append('From', TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:') ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`);
+    params.append('From', from);
     params.append('Body', message);
 
-    await axios.post(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+    const res = await axios.post(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       params,
       {
         headers: {
@@ -84,11 +98,12 @@ export async function sendWhatsApp(toPhone, message) {
         },
       }
     );
-    console.log(`[WhatsApp] ✅ Message sent to ${toPhone}`);
-    return true;
+    console.log(`[WhatsApp] Message sent to ${toPhone}, sid:`, res.data?.sid);
+    return { success: true, sid: res.data?.sid };
   } catch (error) {
-    console.error(`[WhatsApp] ❌ Failed to send WhatsApp to ${toPhone}:`, error.response?.data || error.message);
-    return false;
+    const errData = error.response?.data || error.message;
+    console.error(`[WhatsApp] Failed to send WhatsApp to ${toPhone}:`, errData);
+    return { success: false, error: errData };
   }
 }
 
@@ -124,12 +139,12 @@ ${bookingUrl}`;
 
   if (method === 'whatsapp' || method === 'all') {
     const res = await sendWhatsApp(alert.phoneNumber, textMessage);
-    if (res) success = true;
+    if (res?.success) success = true;
   }
 
   if (method === 'sms' || method === 'all') {
     const res = await sendSMS(alert.phoneNumber, textMessage);
-    if (res) success = true;
+    if (res?.success) success = true;
   }
 
   return success;
@@ -139,7 +154,7 @@ ${bookingUrl}`;
  * Send Immediate Alarm Armed Confirmation to Mobile
  */
 export async function sendAlarmArmedNotification(alert) {
-  if (!alert.phoneNumber) return false;
+  if (!alert.phoneNumber) return { success: false, error: 'No phone number provided' };
 
   const textMessage = 
 `[DROPCLOCK] RADAR ACTIVE
@@ -157,20 +172,19 @@ Dropclock is monitoring this venue continuously. The second new showtimes or mid
 Manage Radars:
 https://wholedropreminder.vercel.app/dashboard`;
 
-  let success = false;
+  const results = {};
   const method = alert.notificationMethod || 'whatsapp';
 
   if (method === 'whatsapp' || method === 'all') {
-    const res = await sendWhatsApp(alert.phoneNumber, textMessage);
-    if (res) success = true;
+    results.whatsapp = await sendWhatsApp(alert.phoneNumber, textMessage);
   }
 
   if (method === 'sms' || method === 'all') {
-    const res = await sendSMS(alert.phoneNumber, textMessage);
-    if (res) success = true;
+    results.sms = await sendSMS(alert.phoneNumber, textMessage);
   }
 
-  return success;
+  const anySuccess = (results.whatsapp?.success || results.sms?.success);
+  return { success: !!anySuccess, results };
 }
 
 /**
