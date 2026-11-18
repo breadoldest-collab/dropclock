@@ -25,6 +25,7 @@
 import Alert from '../models/Alert.js';
 import { checkBookingStatus, getCinemaShows } from './bmsService.js';
 import { sendTelegramAlert, sendMobileAlert } from './notificationService.js';
+import { resolveTheatre } from './theatreResolver.js';
 
 // Polling intervals per phase (in milliseconds)
 const POLL_INTERVALS = {
@@ -81,6 +82,21 @@ async function pollAlert(alertId) {
       return;
     }
 
+    // Self-heal legacy alerts with invalid/non-HTTP bmsUrl (e.g. "aaa cinemas")
+    if (alert.bmsUrl && !alert.bmsUrl.startsWith('http://') && !alert.bmsUrl.startsWith('https://')) {
+      const lookupQuery = (alert.theatreName && alert.theatreName !== 'Selected Multiplex')
+        ? alert.theatreName
+        : alert.bmsUrl;
+      const healed = await resolveTheatre(lookupQuery, alert.city, alert.targetDate || '20261217');
+      if (healed?.bmsUrl) {
+        console.log(`[Poller] Auto-healed legacy alert "${lookupQuery}" -> ${healed.theatreName} (${healed.bmsUrl})`);
+        alert.theatreName = healed.theatreName;
+        alert.bmsUrl = healed.bmsUrl;
+        alert.city = healed.city || alert.city;
+        await alert.save();
+      }
+    }
+
     console.log(`[Poller] Checking: ${alert.movieName} @ ${alert.theatreName} (${alert.pollPhase})`);
 
     // Scenario A: Watch for NEW shows added to an already active date/multiplex
@@ -88,10 +104,21 @@ async function pollAlert(alertId) {
       const cinemaResult = await getCinemaShows({
         url: alert.bmsUrl,
         movieName: alert.movieName,
+        theatreName: alert.theatreName,
+        city: alert.city,
+        targetDate: alert.targetDate,
       });
 
       alert.lastCheckedAt = new Date();
       alert.checkCount += 1;
+
+      if (cinemaResult.blocked) {
+        await alert.save();
+        // Back off politely to 5 minutes when upstream returns 403
+        const backoffTimer = setTimeout(() => pollAlert(alertId), 5 * 60 * 1000);
+        activeTimers.set(alertId, backoffTimer);
+        return;
+      }
 
       if (cinemaResult.shows.length > 0) {
         // Compare with known shows

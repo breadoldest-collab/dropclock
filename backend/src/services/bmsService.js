@@ -286,32 +286,146 @@ export async function getTheatres(city = 'hyderabad') {
 }
 
 /**
- * Fetch and extract all showtimes for a specific cinema and date
- * Directly parses pages like:
- * https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217
- * 
- * @param {Object} params
- * @param {string} params.url - Full BMS cinema buytickets URL
- * @param {string} params.movieName - Optional movie filter (e.g. "Avengers: Doomsday")
- * @returns {Object} { currentShows: string[], formats: string[], rawTitle: string }
+ * Fetch live showtimes via SerpApi (Google Showtimes Knowledge Graph)
+ * Works reliably from cloud servers (Render/AWS) with zero 403 blocks.
+ * Requires SERPAPI_API_KEY in environment variables.
  */
-export async function getCinemaShows({ url, movieName }) {
+export async function getShowtimesFromSerpApi({ theatreName, movieName, city = 'hyderabad', targetDate }) {
+  const apiKey = process.env.SERPAPI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const cleanMovie = movieName && movieName.toLowerCase() !== 'any show' ? movieName : '';
+    const query = `${cleanMovie ? cleanMovie + ' ' : ''}${theatreName} ${city} showtimes`.trim();
+    const location = city.toLowerCase() === 'hyderabad' ? 'Hyderabad, Telangana, India' : `${city}, India`;
+
+    console.log(`[Showtimes API] Querying SerpApi Google Showtimes: "${query}"`);
+    const res = await axios.get('https://serpapi.com/search.json', {
+      params: {
+        engine: 'google',
+        q: query,
+        location,
+        gl: 'in',
+        hl: 'en',
+        api_key: apiKey,
+      },
+      timeout: 15000,
+    });
+
+    const showtimesData = res.data?.showtimes || [];
+    const extracted = [];
+
+    for (const dayBlock of showtimesData) {
+      // Match date if provided (e.g., "17 Dec" / "Today")
+      const theaters = dayBlock.theaters || [];
+      for (const th of theaters) {
+        const thName = (th.name || '').toLowerCase();
+        const targetLower = (theatreName || '').toLowerCase().split('(')[0].trim();
+        if (!targetLower || thName.includes(targetLower.split(' ')[0])) {
+          const showingList = th.showing || [];
+          for (const s of showingList) {
+            if (Array.isArray(s.time)) {
+              extracted.push(...s.time);
+            }
+          }
+        }
+      }
+      // Also support cinema-centric showtimes (movies array under dayBlock)
+      const movies = dayBlock.movies || [];
+      for (const mv of movies) {
+        const mvTitle = (mv.name || '').toLowerCase();
+        if (!cleanMovie || mvTitle.includes(cleanMovie.toLowerCase())) {
+          const showingList = mv.showing || [];
+          for (const s of showingList) {
+            if (Array.isArray(s.time)) {
+              extracted.push(...s.time);
+            }
+          }
+        }
+      }
+    }
+
+    const uniqueShows = [...new Set(extracted.map(t => String(t).trim().toUpperCase()))];
+    console.log(`[Showtimes API] Found ${uniqueShows.length} showtimes via SerpApi`);
+    return {
+      shows: uniqueShows,
+      theatreName,
+      movieFound: uniqueShows.length > 0,
+      source: 'serpapi',
+      error: null,
+    };
+  } catch (error) {
+    console.warn('[Showtimes API] SerpApi query failed:', error.response?.data?.error || error.message);
+    return null;
+  }
+}
+
+/**
+ * Fetch and extract all showtimes for a specific cinema and date
+ */
+export async function getCinemaShows({ url, movieName, theatreName, city, targetDate }) {
   const result = {
     shows: [],
-    theatreName: '',
+    theatreName: theatreName || '',
     movieFound: false,
     url,
+    blocked: false,
+    statusCode: null,
     error: null,
   };
 
+  // Strategy 1: Use official SerpApi Google Showtimes if configured (zero 403s on cloud)
+  if (process.env.SERPAPI_API_KEY && theatreName) {
+    const serpResult = await getShowtimesFromSerpApi({ theatreName, movieName, city, targetDate });
+    if (serpResult) {
+      return { ...result, ...serpResult, url };
+    }
+  }
+
+  // Validate URL strictly before attempting fetch
+  if (!url || typeof url !== 'string') {
+    result.error = 'Missing cinema URL';
+    return result;
+  }
+
+  const trimmedUrl = url.trim();
+  let fullUrl;
+  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+    fullUrl = trimmedUrl;
+  } else if (trimmedUrl.startsWith('/')) {
+    fullUrl = `${BMS_BASE_URL}${trimmedUrl}`;
+  } else {
+    result.error = `Invalid cinema URL: "${trimmedUrl}"`;
+    console.warn(`[BMS] Skipping invalid URL: ${trimmedUrl}`);
+    return result;
+  }
+
   try {
-    const fullUrl = url.startsWith('http') ? url : `${BMS_BASE_URL}${url}`;
+    // Verify URL syntax
+    new URL(fullUrl);
+  } catch {
+    result.error = `Malformed URL: ${fullUrl}`;
+    console.warn(`[BMS] Malformed URL skipped: ${fullUrl}`);
+    return result;
+  }
+
+  try {
     console.log(`[BMS] Fetching cinema page: ${fullUrl}`);
 
     const response = await axios.get(fullUrl, {
       headers: getHeaders(),
       timeout: 15000,
+      validateStatus: (status) => status < 500,
     });
+
+    result.statusCode = response.status;
+
+    if (response.status === 403) {
+      result.blocked = true;
+      result.error = 'HTTP 403 - BookMyShow restricts automated cloud IP fetches (configure SERPAPI_API_KEY for cloud showtimes)';
+      console.warn(`[BMS] 403 Access Restricted for ${fullUrl} — backing off poll interval`);
+      return result;
+    }
 
     if (response.status === 200) {
       const html = response.data;

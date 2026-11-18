@@ -126,7 +126,13 @@ router.post('/', async (req, res) => {
     let initialShows = [];
     if (finalBmsUrl) {
       try {
-        const preview = await getCinemaShows({ url: finalBmsUrl, movieName: finalMovieName });
+        const preview = await getCinemaShows({
+          url: finalBmsUrl,
+          movieName: finalMovieName,
+          theatreName: finalTheatreName,
+          city: finalCity,
+          targetDate: finalTargetDate,
+        });
         initialShows = preview.shows || [];
         console.log(`[API] Captured baseline of ${initialShows.length} shows for new alert`);
       } catch (e) {
