@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Bell, Film, MapPin, Building2, Hash, ArrowRight, 
-  Loader2, CheckCircle2, Phone, Link2, Calendar, Sparkles, PlusCircle, Zap 
+  Loader2, CheckCircle2, Phone, Link2, Calendar, Sparkles, PlusCircle, Zap, Search 
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -96,6 +96,40 @@ function SetAlert() {
   const updateField = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     setError('');
+  };
+
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    const val = (mode === 'url' ? form.bmsUrl : form.theatreName || '').trim();
+    if (val.length < 2 || val.startsWith('http')) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/api/theatres/suggest?q=${encodeURIComponent(val)}`);
+        setSuggestions(data.suggestions || []);
+      } catch {}
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [form.bmsUrl, form.theatreName, mode]);
+
+  const selectSuggestion = (s) => {
+    const cleanDate = form.targetDate ? form.targetDate.replace(/[^0-9]/g, '') : '20261118';
+    const cityCode = s.city === 'hyderabad' ? 'HYD' : (s.city === 'bengaluru' ? 'BANG' : 'MUM');
+    const slug = s.theatreName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const bmsUrl = `https://in.bookmyshow.com/cinemas/${cityCode}/${slug}/buytickets/${s.venueCode || 'VNU1'}/${cleanDate}`;
+
+    setForm(prev => ({
+      ...prev,
+      theatreName: s.theatreName,
+      city: s.city,
+      bmsUrl: bmsUrl,
+    }));
+    setSuggestions([]);
   };
 
   const handleDateSelect = (displayDate, bmsDateSlug, isoDate) => {
@@ -361,6 +395,29 @@ function SetAlert() {
               <p className="font-mono text-[11px] text-ink/60 mt-1.5">
                 Paste a BookMyShow URL or simply type your cinema name.
               </p>
+
+              {/* Live AI / Database Suggestions */}
+              {suggestions.length > 0 && (
+                <div className="bg-paper border-2 border-ink rounded-[14px] p-2 mt-2 shadow-hard-xs space-y-1">
+                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-ink" />
+                    <span>AI Recognized Local Theatres (Tap to Lock):</span>
+                  </div>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => selectSuggestion(s)}
+                      className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
+                    >
+                      <span>{s.theatreName}</span>
+                      <span className="font-mono text-[10px] uppercase text-ink/60 bg-paper/60 px-2 py-0.5 rounded border border-ink/20">
+                        {s.locality || s.city}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Detected Card */}
@@ -495,9 +552,32 @@ function SetAlert() {
                     updateField('bmsUrl', '');
                   }
                 }}
-                placeholder="e.g. AAA Cinemas Ameerpet, Sudarshan 35MM, PVR"
+                placeholder="e.g. AAA Cinemas Ameerpet, Sudarshan 35MM, PVR, Devi 70MM..."
                 className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm font-bold text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"
               />
+
+              {/* Live AI / Database Suggestions */}
+              {suggestions.length > 0 && (
+                <div className="bg-paper border-2 border-ink rounded-[14px] p-2 mt-2 shadow-hard-xs space-y-1">
+                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-ink" />
+                    <span>AI Recognized Local Theatres (Tap to Lock):</span>
+                  </div>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => selectSuggestion(s)}
+                      className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
+                    >
+                      <span>{s.theatreName}</span>
+                      <span className="font-mono text-[10px] uppercase text-ink/60 bg-paper/60 px-2 py-0.5 rounded border border-ink/20">
+                        {s.locality || s.city}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>

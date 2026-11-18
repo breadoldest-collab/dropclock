@@ -9,6 +9,7 @@ import { Router } from 'express';
 import Alert from '../models/Alert.js';
 import { addToPolling, removeFromPolling, getPollingStats } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
+import { resolveTheatre } from '../services/theatreResolver.js';
 
 const router = Router();
 
@@ -101,11 +102,23 @@ router.post('/', async (req, res) => {
 
     const finalMovieName = (movieName && movieName.trim()) ? movieName.trim() : 'Any Show';
     const finalCity = (city || parsed.city || 'hyderabad').toLowerCase();
-    const finalTheatreName = formatTheatreName(cleanTheatre || parsed.theatreName);
-    const finalVenueCode = venueCode || parsed.venueCode;
     const finalTargetDate = targetDate || parsed.targetDate;
+    let finalTheatreName = cleanTheatre || parsed.theatreName;
+    let finalBmsUrl = cleanBmsUrl;
+
+    // Use AI & Fuzzy Resolver for any local or non-standard theatre name
+    if (!finalBmsUrl && finalTheatreName) {
+      const resolved = await resolveTheatre(finalTheatreName, finalCity, finalTargetDate);
+      if (resolved) {
+        finalTheatreName = resolved.theatreName;
+        finalBmsUrl = resolved.bmsUrl;
+      }
+    }
+
+    finalTheatreName = formatTheatreName(finalTheatreName);
+    finalBmsUrl = finalBmsUrl || resolveBmsUrl(finalTheatreName, finalCity, finalTargetDate);
+    const finalVenueCode = venueCode || parsed.venueCode;
     const finalWatchType = watchType || (cleanBmsUrl ? 'new_shows' : 'booking_open');
-    const finalBmsUrl = cleanBmsUrl || resolveBmsUrl(finalTheatreName, finalCity, finalTargetDate);
 
     // If watching for new shows, fetch the current shows baseline right now
     let initialShows = [];

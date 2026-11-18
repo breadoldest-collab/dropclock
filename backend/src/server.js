@@ -17,6 +17,7 @@ import { initTelegramBot } from './services/notificationService.js';
 import { startPolling } from './services/pollingService.js';
 import { registerBotCommands } from './routes/telegramBot.js';
 import alertRoutes from './routes/alerts.js';
+import theatresRouter from './routes/theatres.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ app.use(express.json());
 
 // ─── Routes ─────────────────────────────────────────────
 app.use('/api/alerts', alertRoutes);
+app.use('/api/theatres', theatresRouter);
 
 // Root status
 app.get('/', (req, res) => {
