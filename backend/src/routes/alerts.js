@@ -10,6 +10,7 @@ import Alert from '../models/Alert.js';
 import { addToPolling, removeFromPolling, getPollingStats } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
 import { resolveTheatre } from '../services/theatreResolver.js';
+import { sendAlarmArmedNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -152,6 +153,11 @@ router.post('/', async (req, res) => {
     await alert.save();
     addToPolling(alert);
 
+    // Send immediate confirmation to WhatsApp / SMS
+    sendAlarmArmedNotification(alert).catch(err => {
+      console.warn('[Notification] Failed to send instant confirmation:', err.message);
+    });
+
     res.status(201).json({ 
       message: 'Alert created! Watching for new shows...',
       alert,
@@ -159,6 +165,27 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('[API] Create alert error:', error);
     res.status(500).json({ error: 'Failed to create alert' });
+  }
+});
+
+/**
+ * POST /api/alerts/test-dispatch - Send a test notification immediately
+ */
+router.post('/test-dispatch', async (req, res) => {
+  try {
+    const { phoneNumber, method } = req.body;
+    const testAlert = {
+      movieName: 'Avengers Doomsday',
+      theatreName: 'AAA Cinemas (AAAC)',
+      city: 'hyderabad',
+      targetDate: '17 DEC 2026',
+      phoneNumber: phoneNumber || '9381148844',
+      notificationMethod: method || 'all',
+    };
+    const sent = await sendAlarmArmedNotification(testAlert);
+    res.json({ success: sent, message: 'Test notification dispatched' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

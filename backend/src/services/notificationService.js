@@ -99,23 +99,63 @@ export async function sendWhatsApp(toPhone, message) {
 export async function sendMobileAlert(alert, bookingData) {
   if (!alert.phoneNumber) return false;
 
-  const bookingUrl = bookingData.url || alert.bmsUrl || `https://in.bookmyshow.com/buytickets/${alert.eventCode}`;
+  const bookingUrl = bookingData.url || alert.bmsUrl || `https://in.bookmyshow.com/cinemas`;
   
   const isNewShow = bookingData.isNewShowAlert;
-  const headline = isNewShow ? '[DROPCLOCK] NEW SHOWTIME ADDED' : '[DROPCLOCK] BOOKINGS ARE LIVE';
+  const headline = isNewShow ? '[DROPCLOCK] ALERT: NEW SHOWS OPENED' : '[DROPCLOCK] ALERT: BOOKINGS ARE LIVE';
   const showList = bookingData.showtimes?.length > 0 
-    ? (isNewShow ? `New Shows: ${bookingData.showtimes.join(', ')}\n` : `Shows: ${bookingData.showtimes.slice(0, 4).join(', ')}\n`)
+    ? (isNewShow ? `New Shows: ${bookingData.showtimes.join(', ')}\n` : `Showtimes: ${bookingData.showtimes.slice(0, 5).join(', ')}\n`)
     : '';
 
   const textMessage = 
 `${headline}
 
-Movie: ${alert.movieName}
+New showtimes have just dropped on BookMyShow!
+
+Movie: ${alert.movieName || 'All Shows'}
 Theatre: ${alert.theatreName}
 City: ${alert.city.toUpperCase()}${alert.targetDate ? `\nDate: ${alert.targetDate}` : ''}
 ${showList}
-Direct Booking Link:
+Book your seats before they sell out:
 ${bookingUrl}`;
+
+  let success = false;
+  const method = alert.notificationMethod || 'whatsapp';
+
+  if (method === 'whatsapp' || method === 'all') {
+    const res = await sendWhatsApp(alert.phoneNumber, textMessage);
+    if (res) success = true;
+  }
+
+  if (method === 'sms' || method === 'all') {
+    const res = await sendSMS(alert.phoneNumber, textMessage);
+    if (res) success = true;
+  }
+
+  return success;
+}
+
+/**
+ * Send Immediate Alarm Armed Confirmation to Mobile
+ */
+export async function sendAlarmArmedNotification(alert) {
+  if (!alert.phoneNumber) return false;
+
+  const textMessage = 
+`[DROPCLOCK] RADAR ACTIVE
+
+Your 24/7 ticket alarm has been armed.
+
+Movie: ${alert.movieName || 'All Shows (Auto-Detect)'}
+Theatre: ${alert.theatreName}
+City: ${alert.city.toUpperCase()}
+Target Date: ${alert.targetDate || 'Selected Date'}
+Status: Scanning BookMyShow every 30 seconds
+
+Dropclock is monitoring this venue continuously. The second new showtimes or midnight screens open, you will receive an immediate mobile dispatch with the direct booking deep-link.
+
+Manage Radars:
+https://wholedropreminder.vercel.app/dashboard`;
 
   let success = false;
   const method = alert.notificationMethod || 'whatsapp';
