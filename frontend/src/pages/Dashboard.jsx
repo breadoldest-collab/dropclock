@@ -262,13 +262,13 @@ function Dashboard() {
                 <div className="flex items-center gap-2 self-start md:self-center shrink-0">
                   {/* Status chip */}
                   <span className="px-3 py-1 bg-ink text-acid border-2 border-ink rounded-[8px] font-mono text-xs font-bold uppercase">
-                    {alert.pollPhase === 'hot' ? '30s HOT' : '3m WARM'}
+                    {alert.pollPhase === 'hot' ? '10m HOT' : alert.pollPhase === 'warm' ? '60m WARM' : '6h COLD'}
                   </span>
 
                   {alert.status === 'watching' && alert.pollPhase !== 'hot' && (
                     <button
                       onClick={() => escalateAlert(alert._id)}
-                      title="Escalate to 30s HOT scan"
+                      title="Escalate to 10m HOT scan"
                       className="p-2.5 bg-acid border-2 border-ink rounded-[8px] hover:bg-ink hover:text-acid shadow-hard-xs transition-all"
                     >
                       <Zap className="w-4 h-4" />

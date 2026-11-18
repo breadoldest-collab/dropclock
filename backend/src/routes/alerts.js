@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 import Alert from '../models/Alert.js';
-import { addToPolling, removeFromPolling, getPollingStats } from '../services/pollingService.js';
+import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
 import { resolveTheatre } from '../services/theatreResolver.js';
 import { sendAlarmArmedNotification, fetchTwilioContentTemplates } from '../services/notificationService.js';
@@ -155,7 +155,7 @@ router.post('/', async (req, res) => {
       notificationMethod: notificationMethod || (email ? 'email' : 'whatsapp'),
       telegramChatId: telegramChatId || null,
       status: 'watching',
-      pollPhase: 'hot', // Default to hot (30s) when monitoring imminent new shows!
+      pollPhase: computeSmartPhase(finalTargetDate),
     });
 
     await alert.save();
