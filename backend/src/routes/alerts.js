@@ -10,7 +10,7 @@ import Alert from '../models/Alert.js';
 import { addToPolling, removeFromPolling, getPollingStats } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
 import { resolveTheatre } from '../services/theatreResolver.js';
-import { sendAlarmArmedNotification } from '../services/notificationService.js';
+import { sendAlarmArmedNotification, fetchTwilioContentTemplates } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -184,6 +184,18 @@ router.post('/test-dispatch', async (req, res) => {
     };
     const result = await sendAlarmArmedNotification(testAlert);
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/alerts/twilio-templates - Inspect Twilio Content Templates on account
+ */
+router.get('/twilio-templates', async (req, res) => {
+  try {
+    const templates = await fetchTwilioContentTemplates();
+    res.json({ count: templates.length, templates: templates.map(t => ({ sid: t.sid, friendly_name: t.friendly_name, variables: t.variables, types: t.types })) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

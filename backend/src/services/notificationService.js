@@ -24,23 +24,62 @@ const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER; // e.g. +1234567890
 const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886'; // Twilio sandbox default
 
 /**
+ * Fetch available Content Templates on the Twilio account (for Trial / WhatsApp compliance)
+ */
+export async function fetchTwilioContentTemplates() {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken) return [];
+
+  try {
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+    const res = await axios.get('https://content.twilio.com/v1/Content?PageSize=20', {
+      headers: { Authorization: `Basic ${auth}` },
+    });
+    return res.data?.contents || [];
+  } catch (error) {
+    console.warn('[Twilio Content API] Could not fetch templates:', error.response?.data || error.message);
+    return [];
+  }
+}
+
+/**
+ * Helper to build ContentVariables matching a Twilio Content Template's defined variable keys
+ */
+function buildTemplateVariables(template, context = {}) {
+  const vars = {};
+  const keys = Object.keys(template?.variables || {});
+  const values = [
+    context.date || '17 DEC 2026',
+    context.theatre || 'AAA Cinemas (AAAC)',
+    context.movie || 'Movie Ticket Alert',
+    context.link || 'https://in.bookmyshow.com',
+  ];
+  keys.forEach((k, idx) => {
+    vars[k] = values[idx] || context.theatre || 'Dropclock';
+  });
+  return JSON.stringify(vars);
+}
+
+/**
  * Send SMS directly to a mobile number
  */
-export async function sendSMS(toPhone, message) {
+export async function sendSMS(toPhone, message, context = {}) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
   if (!accountSid || !authToken || !fromNumber) {
-    console.log(`[SMS - Simulation] 📱 To: ${toPhone}\nMessage: ${message}`);
+    console.log(`[SMS - Simulation] To: ${toPhone}\nMessage: ${message}`);
     return { success: true, simulated: true };
   }
 
+  const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const cleanTo = toPhone.trim().replace(/\D/g, '');
+  const formattedTo = toPhone.startsWith('+') ? toPhone : (cleanTo.length === 10 ? `+91${cleanTo}` : `+${cleanTo}`);
+
   try {
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
     const params = new URLSearchParams();
-    const cleanTo = toPhone.trim().replace(/\D/g, '');
-    const formattedTo = toPhone.startsWith('+') ? toPhone : (cleanTo.length === 10 ? `+91${cleanTo}` : `+${cleanTo}`);
     params.append('To', formattedTo);
     params.append('From', fromNumber);
     params.append('Body', message);
@@ -59,6 +98,36 @@ export async function sendSMS(toPhone, message) {
     return { success: true, sid: res.data?.sid };
   } catch (error) {
     const errData = error.response?.data || error.message;
+    // Trial account fallback: use Twilio ContentSid template if custom SMS body is restricted
+    if (errData?.code === 572006 || errData?.code === 21654) {
+      const templates = await fetchTwilioContentTemplates();
+      const tpl = templates.find(t => /event|remind|appoint|alert|notif/i.test(t.friendly_name || '')) || templates[0];
+      if (tpl?.sid) {
+        try {
+          const retryParams = new URLSearchParams();
+          retryParams.append('To', formattedTo);
+          retryParams.append('From', fromNumber);
+          retryParams.append('ContentSid', tpl.sid);
+          if (Object.keys(tpl.variables || {}).length > 0) {
+            retryParams.append('ContentVariables', buildTemplateVariables(tpl, context));
+          }
+          const retryRes = await axios.post(
+            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+            retryParams,
+            {
+              headers: {
+                Authorization: `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+            }
+          );
+          console.log(`[SMS] Sent via trial template ${tpl.friendly_name} (${tpl.sid}), sid:`, retryRes.data?.sid);
+          return { success: true, sid: retryRes.data?.sid, templateUsed: tpl.friendly_name };
+        } catch (retryErr) {
+          return { success: false, error: retryErr.response?.data || retryErr.message, originalError: errData };
+        }
+      }
+    }
     console.error(`[SMS] Failed to send SMS to ${toPhone}:`, errData);
     return { success: false, error: errData };
   }
@@ -67,26 +136,32 @@ export async function sendSMS(toPhone, message) {
 /**
  * Send WhatsApp message directly to a mobile number
  */
-export async function sendWhatsApp(toPhone, message) {
+export async function sendWhatsApp(toPhone, message, context = {}) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+17372508034';
+  const configuredContentSid = process.env.TWILIO_WHATSAPP_CONTENT_SID;
 
   if (!accountSid || !authToken) {
-    console.log(`[WhatsApp - Simulation] 💬 To: ${toPhone}\nMessage:\n${message}`);
+    console.log(`[WhatsApp - Simulation] To: ${toPhone}\nMessage:\n${message}`);
     return { success: true, simulated: true };
   }
 
-  try {
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-    const cleanTo = toPhone.trim().replace(/\D/g, '');
-    const formattedTo = toPhone.startsWith('+') ? toPhone : (cleanTo.length === 10 ? `+91${cleanTo}` : `+${cleanTo}`);
-    const from = whatsappNumber.startsWith('whatsapp:') ? whatsappNumber : `whatsapp:${whatsappNumber}`;
+  const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const cleanTo = toPhone.trim().replace(/\D/g, '');
+  const formattedTo = toPhone.startsWith('+') ? toPhone : (cleanTo.length === 10 ? `+91${cleanTo}` : `+${cleanTo}`);
+  const from = whatsappNumber.startsWith('whatsapp:') ? whatsappNumber : `whatsapp:${whatsappNumber}`;
 
+  try {
     const params = new URLSearchParams();
     params.append('To', `whatsapp:${formattedTo}`);
     params.append('From', from);
-    params.append('Body', message);
+    if (configuredContentSid) {
+      params.append('ContentSid', configuredContentSid);
+      params.append('ContentVariables', JSON.stringify({ '1': context.date || '17 DEC 2026', '2': context.theatre || 'AAA Cinemas' }));
+    } else {
+      params.append('Body', message);
+    }
 
     const res = await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -102,6 +177,37 @@ export async function sendWhatsApp(toPhone, message) {
     return { success: true, sid: res.data?.sid };
   } catch (error) {
     const errData = error.response?.data || error.message;
+    // Trial account fallback: automatically discover & use Twilio ContentSid template
+    if (errData?.code === 21654) {
+      const templates = await fetchTwilioContentTemplates();
+      const tpl = templates.find(t => /event|remind|appoint|alert|notif/i.test(t.friendly_name || '')) || templates[0];
+      if (tpl?.sid) {
+        try {
+          const retryParams = new URLSearchParams();
+          retryParams.append('To', `whatsapp:${formattedTo}`);
+          retryParams.append('From', from);
+          retryParams.append('ContentSid', tpl.sid);
+          if (Object.keys(tpl.variables || {}).length > 0) {
+            retryParams.append('ContentVariables', buildTemplateVariables(tpl, context));
+          }
+          const retryRes = await axios.post(
+            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+            retryParams,
+            {
+              headers: {
+                Authorization: `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+            }
+          );
+          console.log(`[WhatsApp] Sent via trial template ${tpl.friendly_name} (${tpl.sid}), sid:`, retryRes.data?.sid);
+          return { success: true, sid: retryRes.data?.sid, templateUsed: tpl.friendly_name };
+        } catch (retryErr) {
+          return { success: false, error: retryErr.response?.data || retryErr.message, originalError: errData, availableTemplates: templates.map(t => ({ sid: t.sid, name: t.friendly_name, vars: t.variables })) };
+        }
+      }
+      return { success: false, error: errData, availableTemplatesCount: templates.length };
+    }
     console.error(`[WhatsApp] Failed to send WhatsApp to ${toPhone}:`, errData);
     return { success: false, error: errData };
   }
@@ -136,14 +242,20 @@ ${bookingUrl}`;
 
   let success = false;
   const method = alert.notificationMethod || 'whatsapp';
+  const context = {
+    movie: alert.movieName || 'All Shows',
+    theatre: alert.theatreName,
+    date: alert.targetDate || 'Selected Date',
+    link: bookingUrl,
+  };
 
   if (method === 'whatsapp' || method === 'all') {
-    const res = await sendWhatsApp(alert.phoneNumber, textMessage);
+    const res = await sendWhatsApp(alert.phoneNumber, textMessage, context);
     if (res?.success) success = true;
   }
 
   if (method === 'sms' || method === 'all') {
-    const res = await sendSMS(alert.phoneNumber, textMessage);
+    const res = await sendSMS(alert.phoneNumber, textMessage, context);
     if (res?.success) success = true;
   }
 
@@ -174,13 +286,19 @@ https://wholedropreminder.vercel.app/dashboard`;
 
   const results = {};
   const method = alert.notificationMethod || 'whatsapp';
+  const context = {
+    movie: alert.movieName || 'All Shows',
+    theatre: alert.theatreName,
+    date: alert.targetDate || 'Selected Date',
+    link: 'https://wholedropreminder.vercel.app/dashboard',
+  };
 
   if (method === 'whatsapp' || method === 'all') {
-    results.whatsapp = await sendWhatsApp(alert.phoneNumber, textMessage);
+    results.whatsapp = await sendWhatsApp(alert.phoneNumber, textMessage, context);
   }
 
   if (method === 'sms' || method === 'all') {
-    results.sms = await sendSMS(alert.phoneNumber, textMessage);
+    results.sms = await sendSMS(alert.phoneNumber, textMessage, context);
   }
 
   const anySuccess = (results.whatsapp?.success || results.sms?.success);
