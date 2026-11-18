@@ -27,49 +27,15 @@ import { checkBookingStatus, getCinemaShows } from './bmsService.js';
 import { sendTelegramAlert, sendMobileAlert } from './notificationService.js';
 import { resolveTheatre } from './theatreResolver.js';
 
-// Standard polling intervals (direct mode)
-const DIRECT_POLL_INTERVALS = {
+// Clean fixed 30-minute scan interval (1 check every 30 minutes; 10m if manually escalated to HOT)
+const POLL_INTERVALS = {
   cold: 30 * 60 * 1000,   // 30 minutes
-  warm: 3 * 60 * 1000,    // 3 minutes
-  hot: 30 * 1000,         // 30 seconds
+  warm: 30 * 60 * 1000,   // 30 minutes
+  hot: 10 * 60 * 1000,    // 10 minutes (manual boost)
 };
 
-// Quota-fit intervals when SerpApi free tier (250/month) is active
-const SERPAPI_POLL_INTERVALS = {
-  cold: 6 * 60 * 60 * 1000, // 6 hours (for dates > 7 days away)
-  warm: 60 * 60 * 1000,     // 60 minutes (release week: 3-7 days away)
-  hot: 10 * 60 * 1000,      // 10 minutes (within 48h or manually escalated)
-};
-
-function getPollIntervals() {
-  return process.env.SERPAPI_API_KEY ? SERPAPI_POLL_INTERVALS : DIRECT_POLL_INTERVALS;
-}
-
-/**
- * Compute optimal polling phase based on how many days away targetDate is
- */
-export function computeSmartPhase(targetDate) {
-  if (!targetDate) return 'warm';
-  try {
-    let parsed = null;
-    const str = String(targetDate).trim();
-    if (/^\d{8}$/.test(str)) {
-      parsed = new Date(`${str.slice(0, 4)}-${str.slice(4, 6)}-${str.slice(6, 8)}T00:00:00`);
-    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-      const [dd, mm, yyyy] = str.split('/');
-      parsed = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
-    } else {
-      parsed = new Date(str);
-    }
-
-    if (!parsed || isNaN(parsed.getTime())) return 'warm';
-    const diffDays = (parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    if (diffDays <= 2) return 'hot';
-    if (diffDays <= 7) return 'warm';
-    return 'cold';
-  } catch {
-    return 'warm';
-  }
+export function computeSmartPhase() {
+  return 'warm'; // Standard 30-minute scan cycle
 }
 
 // Track active polling timers
@@ -79,20 +45,15 @@ const activeTimers = new Map();
  * Start polling for all active alerts
  */
 export async function startPolling() {
-  console.log('[Poller] Starting polling engine...');
+  console.log('[Poller] Starting polling engine (1 check every 30 minutes)...');
 
   const activeAlerts = await Alert.find({ status: 'watching' });
   console.log(`[Poller] Found ${activeAlerts.length} active alerts to watch`);
 
   for (const alert of activeAlerts) {
-    // Auto-calibrate far-future alerts on SerpApi mode so free credits are preserved
-    if (process.env.SERPAPI_API_KEY && alert.targetDate) {
-      const recommended = computeSmartPhase(alert.targetDate);
-      if (recommended === 'cold' && alert.pollPhase === 'hot') {
-        alert.pollPhase = 'cold';
-        await alert.save();
-        console.log(`[Poller] Auto-calibrated far-future alert "${alert.movieName}" (${alert.targetDate}) to COLD (6h) to fit SerpApi free quota`);
-      }
+    if (alert.pollPhase !== 'warm') {
+      alert.pollPhase = 'warm';
+      await alert.save();
     }
     scheduleNextPoll(alert);
   }
@@ -109,14 +70,12 @@ function scheduleNextPoll(alert) {
     clearTimeout(activeTimers.get(alertId));
   }
 
-  const intervals = getPollIntervals();
-  const interval = intervals[alert.pollPhase] || intervals.cold;
+  const interval = POLL_INTERVALS[alert.pollPhase] || POLL_INTERVALS.warm;
   
   const timer = setTimeout(() => pollAlert(alertId), interval);
   activeTimers.set(alertId, timer);
 
-  const label = interval >= 3600000 ? `${interval / 3600000}h` : `${Math.round(interval / 60000)}m`;
-  console.log(`[Poller] Scheduled ${alert.movieName} @ ${alert.theatreName} -> next check in ${label} (${alert.pollPhase})`);
+  console.log(`[Poller] Scheduled ${alert.movieName} @ ${alert.theatreName} -> next check in ${Math.round(interval / 60000)}m (${alert.pollPhase})`);
 }
 
 /**

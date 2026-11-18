@@ -108,7 +108,7 @@ function Dashboard() {
             ACTIVE RADARS
           </h1>
           <p className="font-space text-sm text-ink/70 font-medium mt-1">
-            {alerts.filter(a => a.status === 'watching').length} live watchers polling BookMyShow every 30s
+            {alerts.filter(a => a.status === 'watching').length} live watchers scanning showtimes every 30 mins
           </p>
         </div>
 
@@ -152,10 +152,10 @@ function Dashboard() {
 
           <div className="bg-ink text-paper border-2 border-ink rounded-[16px] p-5 shadow-hard">
             <span className="font-mono text-[11px] text-acid uppercase font-bold block mb-1">
-              POLLERS HOT
+              ACTIVE POLLERS
             </span>
             <div className="font-dela text-3xl md:text-4xl text-acid">{stats.activePollers || stats.watching}</div>
-            <div className="font-mono text-xs text-paper/70 mt-1">30s Interval</div>
+            <div className="font-mono text-xs text-paper/70 mt-1">30m Interval</div>
           </div>
         </div>
       )}
@@ -262,7 +262,7 @@ function Dashboard() {
                 <div className="flex items-center gap-2 self-start md:self-center shrink-0">
                   {/* Status chip */}
                   <span className="px-3 py-1 bg-ink text-acid border-2 border-ink rounded-[8px] font-mono text-xs font-bold uppercase">
-                    {alert.pollPhase === 'hot' ? '10m HOT' : alert.pollPhase === 'warm' ? '60m WARM' : '6h COLD'}
+                    {alert.pollPhase === 'hot' ? '10m HOT' : '30m SCAN'}
                   </span>
 
                   {alert.status === 'watching' && alert.pollPhase !== 'hot' && (

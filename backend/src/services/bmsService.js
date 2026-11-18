@@ -285,20 +285,13 @@ export async function getTheatres(city = 'hyderabad') {
   return [];
 }
 
-// In-memory SerpApi cache & daily budget guard (fits SerpApi 250/month free tier)
+// Shared 25-minute cinema cache so multiple alerts on the same theatre share 1 search per 30m cycle
 const serpApiCache = new Map();
-const SERPAPI_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-let serpApiDailyState = { date: new Date().toISOString().slice(0, 10), count: 0 };
-
-function getDailySerpApiLimit() {
-  const configured = parseInt(process.env.SERPAPI_DAILY_LIMIT || '8', 10);
-  return Number.isFinite(configured) && configured > 0 ? configured : 8;
-}
+const SERPAPI_CACHE_TTL_MS = 25 * 60 * 1000;
 
 /**
  * Fetch live showtimes via SerpApi (Google Showtimes Knowledge Graph)
- * - Uses cinema-centric query + 10m cache so multiple alerts on the same theatre share 1 credit
- * - Enforces daily budget guard (default 8 calls/day = ~240/month free tier)
+ * - Uses cinema-centric query + 25m shared cache so multiple alerts on the same theatre share 1 credit
  */
 export async function getShowtimesFromSerpApi({ theatreName, movieName, city = 'hyderabad', targetDate }) {
   const apiKey = process.env.SERPAPI_API_KEY;
@@ -312,37 +305,17 @@ export async function getShowtimesFromSerpApi({ theatreName, movieName, city = '
   try {
     let showtimesData = null;
 
-    // 1. Check 10-minute shared theatre cache first (0 credits used)
+    // 1. Check 25-minute shared theatre cache first (0 credits used)
     const cached = serpApiCache.get(cacheKey);
     if (cached && (Date.now() - cached.fetchedAt) < SERPAPI_CACHE_TTL_MS) {
       showtimesData = cached.showtimesData;
       console.log(`[Showtimes API] Cache hit for "${cleanTheatre}" (0 credits used)`);
     } else {
-      // 2. Check daily quota budget before spending a SerpApi credit
-      const todayKey = new Date().toISOString().slice(0, 10);
-      if (serpApiDailyState.date !== todayKey) {
-        serpApiDailyState = { date: todayKey, count: 0 };
-      }
-
-      const dailyLimit = getDailySerpApiLimit();
-      if (serpApiDailyState.count >= dailyLimit) {
-        console.log(`[Showtimes API] Daily SerpApi budget reached (${serpApiDailyState.count}/${dailyLimit}) — conserving free tier until tomorrow`);
-        return {
-          shows: [],
-          theatreName,
-          movieFound: false,
-          source: 'serpapi_quota_saved',
-          quotaSaved: true,
-          error: null,
-        };
-      }
-
       // Query cinema-centric so 1 search covers ALL movies at this theatre
       const query = `${cleanTheatre} ${cleanCity} showtimes`.trim();
       const location = cleanCity === 'hyderabad' ? 'Hyderabad, Telangana, India' : `${cleanCity}, India`;
 
-      console.log(`[Showtimes API] Querying SerpApi (${serpApiDailyState.count + 1}/${dailyLimit} today): "${query}"`);
-      serpApiDailyState.count += 1;
+      console.log(`[Showtimes API] Querying SerpApi (30m cycle): "${query}"`);
 
       const res = await axios.get('https://serpapi.com/search.json', {
         params: {

@@ -391,7 +391,7 @@ Movie: ${alert.movieName || 'All Shows (Auto-Detect)'}
 Theatre: ${alert.theatreName}
 City: ${alert.city.toUpperCase()}
 Target Date: ${alert.targetDate || 'Selected Date'}
-Status: Scanning BookMyShow every 30 seconds
+Status: Scanning showtimes every 30 minutes
 
 Dropclock is monitoring this venue continuously. The second new showtimes or midnight screens open, you will receive an immediate alert with the direct booking deep-link.
 
@@ -411,13 +411,13 @@ https://wholedropreminder.vercel.app/dashboard`;
     const html = buildEmailHtml({
       badge: 'RADAR ACTIVE - 24/7 WATCHING',
       title: 'ALARM ARMED',
-      subtitle: 'Dropclock is now scanning BookMyShow every 30 seconds. The moment new showtimes or midnight screens open, we will send you a direct booking link.',
+      subtitle: 'Dropclock is now scanning showtimes every 30 minutes. The moment new showtimes or midnight screens open, we will send you a direct booking link.',
       rows: [
         { label: 'Movie', value: alert.movieName || 'All Shows (Auto-Detect)' },
         { label: 'Theatre', value: alert.theatreName },
         { label: 'City', value: alert.city.toUpperCase() },
         { label: 'Target Date', value: alert.targetDate || 'Selected Date' },
-        { label: 'Scan Interval', value: 'Every 30 Seconds (HOT)' },
+        { label: 'Scan Interval', value: 'Every 30 Minutes' },
       ],
       ctaLabel: 'View Active Radars',
       ctaUrl: 'https://wholedropreminder.vercel.app/dashboard',
