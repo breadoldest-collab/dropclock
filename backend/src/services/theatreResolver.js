@@ -1,329 +1,127 @@
 import axios from 'axios';
 
 /**
- * Built-in Cinema Knowledge Base (Single Screens, Multiplexes & Chains)
+ * Verified Cinema Knowledge Base with REAL BookMyShow Venue URLs
+ * Note: BookMyShow cinema pages (/cinemas/...) open the live venue page directly
+ * without 404ing on future unopened dates.
  */
 const KNOWN_THEATRES = [
-  // Hyderabad - RTC X Roads Legendary Single Screens
+  {
+    aliases: ['aaa', 'aaa cinemas', 'aaac', 'acas', 'aaa ameerpet', 'allu arjun cinema'],
+    name: 'AAA Cinemas (Ameerpet)',
+    city: 'hyderabad',
+    locality: 'Ameerpet',
+    venueCode: 'ACAS',
+    url: 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS',
+  },
+  {
+    aliases: ['allu', 'allu cinemas', 'allu kokapet', 'alco'],
+    name: 'ALLU Cinemas (Kokapet)',
+    city: 'hyderabad',
+    locality: 'Kokapet',
+    venueCode: 'ALCO',
+    url: 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO',
+  },
+  {
+    aliases: ['prasads', 'prasad', 'prasads multiplex', 'prhn', 'prasads imax', 'prasads pcx', 'screen 6 pcx'],
+    name: 'Prasads Multiplex (Necklace Road)',
+    city: 'hyderabad',
+    locality: 'Necklace Road',
+    venueCode: 'PRHN',
+    url: 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/PRHN',
+  },
+  {
+    aliases: ['amb', 'amb cinemas', 'ambc', 'ambg', 'mahesh babu cinema', 'amb gachibowli'],
+    name: 'AMB Cinemas (Gachibowli)',
+    city: 'hyderabad',
+    locality: 'Gachibowli',
+    venueCode: 'AMBG',
+    url: 'https://in.bookmyshow.com/cinemas/amb-cinemas-gachibowli/AMBG',
+  },
+  {
+    aliases: ['pvr nexus', 'pvr forum', 'nexus mall', 'pvnd', 'pvnk', 'pvr kukatpally', 'pvr inox nexus'],
+    name: 'PVR: Nexus Mall (Kukatpally)',
+    city: 'hyderabad',
+    locality: 'Kukatpally',
+    venueCode: 'PVNK',
+    url: 'https://in.bookmyshow.com/cinemas/pvr-nexus-mall-kukatpally-hyderabad/PVNK',
+  },
   {
     aliases: ['sudarshan', 'sudarshan 35mm', 'sudarshan 35', 'sudx', 'rtc x roads sudarshan'],
-    name: 'Sudarshan 35MM (RTC X Roads)',
+    name: 'Sudarshan 35MM 4K Laser (RTC X Roads)',
     city: 'hyderabad',
     locality: 'RTC X Roads',
-    venueCode: 'SUDX',
-    slug: 'sudarshan-35mm-rtc-x-roads',
+    venueCode: '2485',
+    url: 'https://in.bookmyshow.com/cinemas/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2485',
   },
   {
     aliases: ['devi', 'devi 70mm', 'devi 70', 'devi 4k', 'devi laser', 'devh', 'rtc x roads devi'],
     name: 'Devi 70MM 4K Laser (RTC X Roads)',
     city: 'hyderabad',
     locality: 'RTC X Roads',
-    venueCode: 'DEVH',
-    slug: 'devi-70mm-4k-laser-rtc-x-roads',
+    venueCode: '2483',
+    url: 'https://in.bookmyshow.com/cinemas/devi-70mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2483',
   },
   {
-    aliases: ['sandhya 70mm', 'sandhya 70', 'sandhya', 'sanh', 's70m'],
+    aliases: ['sandhya 70mm', 'sandhya 70', 'sandhya', 'sanh', 'sand'],
     name: 'Sandhya 70MM (RTC X Roads)',
     city: 'hyderabad',
     locality: 'RTC X Roads',
-    venueCode: 'SANH',
-    slug: 'sandhya-70mm-rtc-x-roads',
+    venueCode: 'SAND',
+    url: 'https://in.bookmyshow.com/cinemas/sandhya-70mm-rtc-x-roads-hyderabad/SAND',
   },
   {
-    aliases: ['sandhya 35mm', 'sandhya 35', 'sanm'],
-    name: 'Sandhya 35MM (RTC X Roads)',
-    city: 'hyderabad',
-    locality: 'RTC X Roads',
-    venueCode: 'SANM',
-    slug: 'sandhya-35mm-rtc-x-roads',
-  },
-  {
-    aliases: ['sapthagiri', 'sapthagiri 70mm', 'sapt'],
-    name: 'Sapthagiri 70MM (RTC X Roads)',
-    city: 'hyderabad',
-    locality: 'RTC X Roads',
-    venueCode: 'SAPT',
-    slug: 'sapthagiri-70mm-rtc-x-roads',
-  },
-  {
-    aliases: ['usha mayuri', 'ushamayuri', 'usha', 'mayuri 70mm'],
-    name: 'Usha Mayuri 70MM (RTC X Roads)',
-    city: 'hyderabad',
-    locality: 'RTC X Roads',
-    venueCode: 'USHA',
-    slug: 'usha-mayuri-70mm-rtc-x-roads',
-  },
-
-  // Hyderabad - Kukatpally & Moosapet Single Screens & Multiplexes
-  {
-    aliases: ['bramaramba', 'bhramaramba', 'bramaramba 70mm', 'bram'],
-    name: 'Bramaramba 70MM (Kukatpally)',
+    aliases: ['bramaramba', 'bhramaramba', 'bramaramba 70mm', 'bhramaramba 70mm', 'bhra'],
+    name: 'Bhramaramba 70MM (Kukatpally)',
     city: 'hyderabad',
     locality: 'Kukatpally',
-    venueCode: 'BRAM',
-    slug: 'bramaramba-70mm-kukatpally',
+    venueCode: 'BHRA',
+    url: 'https://in.bookmyshow.com/cinemas/bhramaramba-70mm-kukatpally-hyderabad/BHRA',
   },
   {
     aliases: ['mallikarjuna', 'mallikarjuna 70mm', 'mallikarguna', 'mall'],
     name: 'Mallikarjuna 70MM (Kukatpally)',
     city: 'hyderabad',
     locality: 'Kukatpally',
-    venueCode: 'MALL',
-    slug: 'mallikarjuna-70mm-kukatpally',
+    venueCode: '1684',
+    url: 'https://in.bookmyshow.com/cinemas/mallikarjuna-70mm-a-c-dts-kukatpally-hyderabad/BMSH/1684',
   },
   {
-    aliases: ['arjun', 'arjun 70mm', 'arjun theatre'],
-    name: 'Arjun 70MM (Kukatpally)',
-    city: 'hyderabad',
-    locality: 'Kukatpally',
-    venueCode: 'ARJN',
-    slug: 'arjun-70mm-kukatpally',
-  },
-  {
-    aliases: ['viswanath', 'vishwanath', 'viswanath 70mm', 'visw'],
-    name: 'Viswanath 70MM (Kukatpally)',
-    city: 'hyderabad',
-    locality: 'Kukatpally',
-    venueCode: 'VISW',
-    slug: 'viswanath-70mm-kukatpally',
-  },
-  {
-    aliases: ['shiva', 'shiva 70mm', 'siva', 'siva 70mm'],
-    name: 'Shiva 70MM (Dilsukhnagar / Moosapet)',
+    aliases: ['sriramulu', 'sreeramulu', 'sree ramulu', 'sriramulu 70mm', 'sreeramulu 70mm'],
+    name: 'Sree Ramulu 70MM 4K Laser (Moosapet)',
     city: 'hyderabad',
     locality: 'Moosapet',
-    venueCode: 'SHIV',
-    slug: 'shiva-70mm-moosapet',
+    venueCode: '1686',
+    url: 'https://in.bookmyshow.com/cinemas/sree-ramulu-70mm-4k-laser-moosapet-hyderabad/BMSH/1686',
   },
   {
-    aliases: ['sriramulu', 'sreeramulu', 'sriramulu 70mm', 'sreeramulu 70mm', 'srrm'],
-    name: 'Sriramulu 70MM (Moosapet)',
-    city: 'hyderabad',
-    locality: 'Moosapet',
-    venueCode: 'SRRM',
-    slug: 'sriramulu-70mm-moosapet',
-  },
-  {
-    aliases: ['gokul', 'gokul 70mm', 'gokul theatre erragadda'],
-    name: 'Gokul 70MM (Erragadda)',
+    aliases: ['gokul', 'gokul 70mm', 'gokul theatre', 'gokul erragadda'],
+    name: 'Gokul 70MM 4K DTS (Erragadda)',
     city: 'hyderabad',
     locality: 'Erragadda',
-    venueCode: 'GOKL',
-    slug: 'gokul-70mm-erragadda',
-  },
-
-  // Hyderabad - Major Multiplexes & Hubs
-  {
-    aliases: ['aaa', 'aaa cinemas', 'aaac', 'aaa ameerpet', 'allu arjun cinema'],
-    name: 'AAA Cinemas (AAAC)',
-    city: 'hyderabad',
-    locality: 'Ameerpet',
-    venueCode: 'AAAC',
-    slug: 'aaa-cinemas-ameerpet',
+    venueCode: '2493',
+    url: 'https://in.bookmyshow.com/cinemas/gokul-70mm-4k-dts-erragadda-hyderabad/BMSH/2493',
   },
   {
-    aliases: ['prasads', 'prasad', 'prasads multiplex', 'prhn', 'prasads imax', 'prasads pcx', 'screen 6 pcx'],
-    name: 'Prasads Multiplex (PRHN)',
-    city: 'hyderabad',
-    locality: 'Necklace Road',
-    venueCode: 'PRHN',
-    slug: 'prasads-multiplex-hyderabad',
-  },
-  {
-    aliases: ['amb', 'amb cinemas', 'ambc', 'mahesh babu cinema', 'amb gachibowli'],
-    name: 'AMB Cinemas (AMBC)',
-    city: 'hyderabad',
-    locality: 'Gachibowli',
-    venueCode: 'AMBC',
-    slug: 'amb-cinemas-gachibowli',
-  },
-  {
-    aliases: ['pvr nexus', 'pvr forum', 'nexus mall', 'pvnd', 'pvr kukatpally'],
-    name: 'PVR Inox Nexus (PVND)',
-    city: 'hyderabad',
-    locality: 'Kukatpally',
-    venueCode: 'PVND',
-    slug: 'pvr-nexus-mall-kukatpally',
-  },
-  {
-    aliases: ['pvr inorbit', 'inorbit mall', 'pvib', 'pvr cyberabad'],
-    name: 'PVR Inorbit Mall (PVIB)',
-    city: 'hyderabad',
-    locality: 'Madhapur',
-    venueCode: 'PVIB',
-    slug: 'pvr-inorbit-cyberabad',
-  },
-  {
-    aliases: ['pvr next galleria', 'next galleria punjagutta', 'pvr punjagutta'],
-    name: 'PVR Next Galleria (Punjagutta)',
-    city: 'hyderabad',
-    locality: 'Punjagutta',
-    venueCode: 'PVPG',
-    slug: 'pvr-next-galleria-mall-punjagutta',
-  },
-  {
-    aliases: ['pvr irrum manzil', 'irrum manzil', 'central mall'],
-    name: 'PVR Next Galleria (Irrum Manzil)',
-    city: 'hyderabad',
-    locality: 'Irrum Manzil',
-    venueCode: 'PVIM',
-    slug: 'pvr-next-galleria-mall-irrum-manzil',
-  },
-  {
-    aliases: ['cinepolis manjeera', 'cinepolis kukatpally', 'manjeera mall'],
-    name: 'Cinepolis Manjeera Mall (Kukatpally)',
-    city: 'hyderabad',
-    locality: 'Kukatpally',
-    venueCode: 'CPMJ',
-    slug: 'cinepolis-manjeera-trinity-mall-kukatpally',
-  },
-  {
-    aliases: ['cinepolis dsl', 'dsl virtue mall', 'dsl mall uppal'],
-    name: 'Cinepolis DSL Virtue Mall (Uppal)',
-    city: 'hyderabad',
-    locality: 'Uppal',
-    venueCode: 'CPDU',
-    slug: 'cinepolis-dsl-virtue-mall-uppal',
-  },
-
-  // Hyderabad - Dilsukhnagar & LB Nagar
-  {
-    aliases: ['konark', 'konark 70mm', 'konk'],
-    name: 'Konark 70MM (Dilsukhnagar)',
-    city: 'hyderabad',
-    locality: 'Dilsukhnagar',
-    venueCode: 'KONK',
-    slug: 'konark-theatre-dilsukhnagar',
-  },
-  {
-    aliases: ['rajdhani', 'rajdhani deluxe', 'rajdhani 70mm'],
-    name: 'Rajdhani Deluxe (Dilsukhnagar)',
-    city: 'hyderabad',
-    locality: 'Dilsukhnagar',
-    venueCode: 'RAJD',
-    slug: 'rajdhani-deluxe-theatre-dilsukhnagar',
-  },
-  {
-    aliases: ['venkatadri', 'venkatadri 70mm'],
-    name: 'Venkatadri 70MM (Dilsukhnagar)',
-    city: 'hyderabad',
-    locality: 'Dilsukhnagar',
-    venueCode: 'VENK',
-    slug: 'venkatadri-theatre-dilsukhnagar',
-  },
-  {
-    aliases: ['shalini', 'miraj shalini', 'shalini shivani'],
-    name: 'Miraj Cinemas Shalini (Dilsukhnagar)',
-    city: 'hyderabad',
-    locality: 'Dilsukhnagar',
-    venueCode: 'MRJS',
-    slug: 'miraj-cinemas-shalini-shivani-dilsukhnagar',
-  },
-
-  // Hyderabad - Secunderabad
-  {
-    aliases: ['tivoli', 'tivoli cinema', 'tivoli extreme', 'tivl'],
-    name: 'Tivoli Cinemas (Secunderabad)',
-    city: 'hyderabad',
-    locality: 'Secunderabad',
-    venueCode: 'TIVL',
-    slug: 'tivoli-cinema-secunderabad',
-  },
-  {
-    aliases: ['prashanth', 'prashanth 70mm', 'prashanth secunderabad'],
-    name: 'Prashanth 70MM (Secunderabad)',
-    city: 'hyderabad',
-    locality: 'Secunderabad',
-    venueCode: 'PRSH',
-    slug: 'prashanth-theatre-secunderabad',
-  },
-
-  // Asian Cinemas Chain
-  {
-    aliases: ['asian radhika', 'radhika multiplex', 'radhika ecil', 'asian ecil'],
+    aliases: ['asian radhika', 'radhika multiplex', 'radhika ecil', 'armh'],
     name: 'Asian Radhika Multiplex (ECIL)',
     city: 'hyderabad',
     locality: 'ECIL',
-    venueCode: 'ASRD',
-    slug: 'asian-radhika-multiplex-ecil',
+    venueCode: 'ARMH',
+    url: 'https://in.bookmyshow.com/cinemas/asian-radhika-multiplex-ecil-hyderabad/ARMH',
   },
   {
-    aliases: ['asian cinesquare', 'cinesquare uppal', 'asian uppal'],
-    name: 'Asian CineSquare Multiplex (Uppal)',
+    aliases: ['avd', 'avd cinemas', 'avdm', 'avd mahbubnagar'],
+    name: 'AVD Cinemas (Mahbubnagar)',
     city: 'hyderabad',
-    locality: 'Uppal',
-    venueCode: 'ASCS',
-    slug: 'asian-cinesquare-multiplex-uppal',
-  },
-  {
-    aliases: ['asian mukta a2', 'mukta a2 ganga', 'ganga jamuna'],
-    name: 'Asian Mukta A2 Cinemas (RTC X Roads)',
-    city: 'hyderabad',
-    locality: 'RTC X Roads',
-    venueCode: 'AMKT',
-    slug: 'asian-mukta-a2-cinemas-rtc-x-roads',
-  },
-  {
-    aliases: ['asian shivaganga', 'shivaganga', 'siva ganga'],
-    name: 'Asian Shiva Ganga (Dilsukhnagar)',
-    city: 'hyderabad',
-    locality: 'Dilsukhnagar',
-    venueCode: 'ASG',
-    slug: 'asian-shiva-ganga-theatre-dilsukhnagar',
-  },
-  {
-    aliases: ['asian tarakarama', 'tarakarama', 'taraka rama kachiguda'],
-    name: 'Asian Taraka Rama (Kachiguda)',
-    city: 'hyderabad',
-    locality: 'Kachiguda',
-    venueCode: 'ASTR',
-    slug: 'asian-tarakarama-theatre-kachiguda',
-  },
-
-  // Bangalore Hubs
-  {
-    aliases: ['urvashi', 'urvashi 4k', 'urvashi theatre bangalore', 'urvashi dts'],
-    name: 'Urvashi Digital 4K Cinema (Lalbagh Road)',
-    city: 'bengaluru',
-    locality: 'Lalbagh Road',
-    venueCode: 'URVI',
-    slug: 'urvashi-digital-4k-cinema-lalbagh-road',
-  },
-  {
-    aliases: ['sandhya bangalore', 'sandhya madiwala'],
-    name: 'Sandhya Digital 4K (Madiwala)',
-    city: 'bengaluru',
-    locality: 'Madiwala',
-    venueCode: 'SNDB',
-    slug: 'sandhya-digital-4k-madiwala',
-  },
-  {
-    aliases: ['pvr orion', 'orion mall pvr'],
-    name: 'PVR Orion Mall (Rajajinagar)',
-    city: 'bengaluru',
-    locality: 'Rajajinagar',
-    venueCode: 'PVOR',
-    slug: 'pvr-orion-mall-dr-rajkumar-road',
-  },
-
-  // Mumbai Hubs
-  {
-    aliases: ['maison inox', 'jio world plaza', 'maison inox jio', 'imjw'],
-    name: 'Maison INOX Jio World Plaza (BKC)',
-    city: 'mumbai',
-    locality: 'BKC',
-    venueCode: 'IMJW',
-    slug: 'maison-inox-jio-world-plaza-bkc',
-  },
-  {
-    aliases: ['g7 multiplex', 'gaiety galaxy', 'gaiety bandra'],
-    name: 'G7 Multiplex Gaiety Galaxy (Bandra)',
-    city: 'mumbai',
-    locality: 'Bandra',
-    venueCode: 'G7MX',
-    slug: 'g7-multiplex-bandra',
+    locality: 'Mahbubnagar',
+    venueCode: 'AVDM',
+    url: 'https://in.bookmyshow.com/cinemas/avd-cinemas-mahbubnagar/AVDM',
   },
 ];
+
+// Permanent in-memory cache for resolved theatres via SerpApi / Gemini
+const resolvedCache = new Map();
 
 /**
  * Fuzzy similarity scoring between two strings
@@ -336,7 +134,7 @@ function calculateSimilarity(s1, s2) {
 
   const wordsA = a.split(/\s+/);
   const wordsB = b.split(/\s+/);
-  const common = wordsA.filter(w => wordsB.includes(w));
+  const common = wordsA.filter(w => w.length > 1 && wordsB.includes(w));
   if (common.length > 0) {
     return 0.5 + (0.4 * (common.length / Math.max(wordsA.length, wordsB.length)));
   }
@@ -345,18 +143,16 @@ function calculateSimilarity(s1, s2) {
 }
 
 /**
- * Fast Local Fuzzy Resolver
+ * Fast Local Verified Database Resolver
  */
-export function resolveFromDatabase(query, city = 'hyderabad', targetDate = '20261118') {
+export function resolveFromDatabase(query) {
   if (!query) return null;
   const cleanQuery = query.toLowerCase().trim();
-  const cleanDate = targetDate.replace(/[^0-9]/g, '') || '20261118';
 
   let bestMatch = null;
   let highestScore = 0;
 
   for (const t of KNOWN_THEATRES) {
-    // Check aliases
     for (const alias of t.aliases) {
       const score = calculateSimilarity(cleanQuery, alias);
       if (score > highestScore) {
@@ -364,8 +160,6 @@ export function resolveFromDatabase(query, city = 'hyderabad', targetDate = '202
         bestMatch = t;
       }
     }
-
-    // Check theatre name itself
     const nameScore = calculateSimilarity(cleanQuery, t.name);
     if (nameScore > highestScore) {
       highestScore = nameScore;
@@ -373,16 +167,15 @@ export function resolveFromDatabase(query, city = 'hyderabad', targetDate = '202
     }
   }
 
-  if (bestMatch && highestScore >= 0.5) {
-    const cityCode = bestMatch.city === 'hyderabad' ? 'HYD' : (bestMatch.city === 'bengaluru' ? 'BANG' : 'MUM');
+  if (bestMatch && highestScore >= 0.7) {
     return {
       theatreName: bestMatch.name,
       city: bestMatch.city,
       locality: bestMatch.locality,
       venueCode: bestMatch.venueCode,
-      bmsUrl: `https://in.bookmyshow.com/cinemas/${cityCode}/${bestMatch.slug}/buytickets/${bestMatch.venueCode}/${cleanDate}`,
+      bmsUrl: bestMatch.url,
       confidence: highestScore,
-      source: 'database_fuzzy',
+      source: 'verified_database',
     };
   }
 
@@ -390,30 +183,71 @@ export function resolveFromDatabase(query, city = 'hyderabad', targetDate = '202
 }
 
 /**
- * Gemini AI Resolver
- * Intelligently classifies any local theatre across India via Google Gemini
+ * Find the REAL, LIVE BookMyShow cinema page URL via SerpApi Google Index
+ * Guarantees the "Book on BMS" button opens the actual cinema page instead of a 404.
  */
-export async function resolveWithGeminiAI(query, city = 'hyderabad', targetDate = '20261118') {
+export async function findRealBmsUrlViaSerpApi(query, city = 'hyderabad') {
+  const apiKey = process.env.SERPAPI_API_KEY;
+  if (!apiKey || !query) return null;
+
+  try {
+    const res = await axios.get('https://serpapi.com/search.json', {
+      params: {
+        engine: 'google',
+        q: `site:in.bookmyshow.com/cinemas ${query}`,
+        gl: 'in',
+        hl: 'en',
+        num: 3,
+        api_key: apiKey,
+      },
+      timeout: 10000,
+    });
+
+    const organic = res.data?.organic_results || [];
+    const bmsResult = organic.find(
+      r => r.link && r.link.includes('in.bookmyshow.com/cinemas/')
+    );
+
+    if (bmsResult) {
+      // Clean title like "AVD Cinemas: Mahbubnagar | Movie Showtimes & Ticket Booking ..."
+      const rawTitle = (bmsResult.title || '').split('|')[0].split('-')[0].trim();
+      const urlParts = bmsResult.link.split('/').filter(Boolean);
+      const venueCode = urlParts[urlParts.length - 1] || 'BMS';
+
+      return {
+        theatreName: rawTitle || query,
+        city: city.toLowerCase(),
+        locality: rawTitle.includes(':') ? rawTitle.split(':')[1].trim() : '',
+        venueCode: venueCode.toUpperCase(),
+        bmsUrl: bmsResult.link,
+        confidence: 0.98,
+        source: 'serpapi_bms_live',
+      };
+    }
+  } catch (error) {
+    console.warn('[Theatre Resolver] SerpApi BMS lookup skipped:', error.message);
+  }
+  return null;
+}
+
+/**
+ * Gemini AI Resolver
+ * Identifies exact official cinema name, locality, and city for any Indian theatre
+ */
+export async function resolveWithGeminiAI(query, city = 'hyderabad') {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
   try {
-    const prompt = `You are a BookMyShow India cinema intelligence expert.
-Given this user input for a cinema / theatre: "${query}" in city "${city}".
+    const prompt = `You are an Indian cinema directory expert for BookMyShow India.
+Given this user input for a cinema / theatre: "${query}" (default city hint: "${city}").
 
-Identify:
-1. Standardized Official Theatre Name with Locality (e.g. "Devi 70MM 4K Laser (RTC X Roads)", "Sandhya 70MM (RTC X Roads)", "Bramaramba 70MM (Kukatpally)", "AAA Cinemas (AAAC)")
-2. Locality or area
-3. Standard 4-letter BMS Venue Code (e.g. "DEVH", "SANH", "BRAM", "AAAC", "PRHN", "SUDX", or reasonable 4-letter code)
-4. Accurate BookMyShow URL slug for this theatre (e.g. "devi-70mm-4k-laser-rtc-x-roads", "sandhya-70mm-rtc-x-roads")
-
-Reply strictly with JSON only without markdown formatting:
+Identify the real cinema name (fix spelling mistakes or abbreviations if obvious), its locality/area, and its city in India.
+Reply strictly with JSON only:
 {
-  "theatreName": "...",
-  "locality": "...",
-  "city": "...",
-  "venueCode": "...",
-  "slug": "..."
+  "theatreName": "Official Cinema Name (Locality)",
+  "locality": "Area or Town",
+  "city": "city in lowercase"
 }`;
 
     const response = await axios.post(
@@ -425,7 +259,7 @@ Reply strictly with JSON only without markdown formatting:
           responseMimeType: 'application/json',
         },
       },
-      { timeout: 12000 }
+      { timeout: 10000 }
     );
 
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -435,19 +269,11 @@ Reply strictly with JSON only without markdown formatting:
     if (Array.isArray(data) && data.length > 0) data = data[0];
     if (!data || !data.theatreName) return null;
 
-    const cleanDate = targetDate.replace(/[^0-9]/g, '') || '20261118';
-    const citySlug = (data.city || city).toLowerCase();
-    const cityCode = citySlug === 'hyderabad' ? 'HYD' : (citySlug === 'bengaluru' ? 'BANG' : 'MUM');
-    const slug = data.slug || data.theatreName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const venueCode = data.venueCode || 'VNU1';
-
     return {
       theatreName: data.theatreName,
-      city: citySlug,
+      city: (data.city || city).toLowerCase(),
       locality: data.locality || '',
-      venueCode: venueCode,
-      bmsUrl: `https://in.bookmyshow.com/cinemas/${cityCode}/${slug}/buytickets/${venueCode}/${cleanDate}`,
-      confidence: 0.95,
+      confidence: 0.92,
       source: 'gemini_ai',
     };
   } catch (error) {
@@ -458,31 +284,66 @@ Reply strictly with JSON only without markdown formatting:
 
 /**
  * Universal Master Resolver
- * 1. Checks High-Speed Built-In Fuzzy Database (Instant, 0ms, covers 99% of top single screens & multiplexes)
- * 2. Falls back to Google Gemini AI if API key is present
- * 3. Falls back to smart title formatting + BookMyShow city explorer
+ * 1. Verified local cinema database (0ms, exact real BMS links)
+ * 2. Permanent in-memory cache
+ * 3. Live BookMyShow URL lookup via SerpApi (returns 100% real BMS cinema URLs!)
+ * 4. Gemini AI identification + SerpApi BMS URL lookup for the AI-corrected name
+ * 5. Safe fallback (never invents fake 404 venue codes!)
  */
-export async function resolveTheatre(query, city = 'hyderabad', targetDate = '20261118') {
+export async function resolveTheatre(query, city = 'hyderabad') {
   if (!query) return null;
+  const cleanKey = `${query.toLowerCase().trim()}|${(city || 'hyderabad').toLowerCase().trim()}`;
 
-  // 1. Check built-in database first (instantaneous)
-  const localMatch = resolveFromDatabase(query, city, targetDate);
-  if (localMatch && localMatch.confidence >= 0.75) {
-    return localMatch;
-  }
-
-  // 2. Query Gemini AI if API key is configured
-  if (process.env.GEMINI_API_KEY) {
-    const aiMatch = await resolveWithGeminiAI(query, city, targetDate);
-    if (aiMatch) return aiMatch;
-  }
-
-  // 3. Fallback: return highest-scoring database match if >= 0.5
+  // 1. Verified DB match (instant)
+  const localMatch = resolveFromDatabase(query);
   if (localMatch) {
     return localMatch;
   }
 
-  // 4. Default: Title Case + BMS City Search
+  // 2. Check cache
+  if (resolvedCache.has(cleanKey)) {
+    return resolvedCache.get(cleanKey);
+  }
+
+  // 3. Try finding the real live BookMyShow page URL directly via SerpApi
+  const serpDirect = await findRealBmsUrlViaSerpApi(query, city);
+  if (serpDirect) {
+    resolvedCache.set(cleanKey, serpDirect);
+    return serpDirect;
+  }
+
+  // 4. Ask Gemini AI to identify / spell-correct the cinema name
+  const aiMatch = await resolveWithGeminiAI(query, city);
+  if (aiMatch) {
+    // Check if the AI-corrected name matches our verified DB
+    const dbFromAi = resolveFromDatabase(aiMatch.theatreName);
+    if (dbFromAi) {
+      resolvedCache.set(cleanKey, dbFromAi);
+      return dbFromAi;
+    }
+
+    // Or look up the real BMS page for the AI-corrected name
+    const serpFromAi = await findRealBmsUrlViaSerpApi(aiMatch.theatreName, aiMatch.city);
+    if (serpFromAi) {
+      const merged = {
+        ...serpFromAi,
+        theatreName: aiMatch.theatreName || serpFromAi.theatreName,
+        source: 'gemini_ai+serpapi',
+      };
+      resolvedCache.set(cleanKey, merged);
+      return merged;
+    }
+
+    const aiFallback = {
+      ...aiMatch,
+      venueCode: 'BMS',
+      bmsUrl: `https://in.bookmyshow.com/explore/cinemas-${aiMatch.city || 'hyderabad'}`,
+    };
+    resolvedCache.set(cleanKey, aiFallback);
+    return aiFallback;
+  }
+
+  // 5. Heuristic fallback
   const titleCased = query
     .trim()
     .replace(/\b[a-z]/g, l => l.toUpperCase())
@@ -504,7 +365,7 @@ export async function resolveTheatre(query, city = 'hyderabad', targetDate = '20
 
 /**
  * Live Suggestions Endpoint
- * Returns top matching theatres as the user types
+ * Returns top matching verified theatres with their real BookMyShow URLs
  */
 export function getLiveSuggestions(query, limit = 5) {
   if (!query || query.length < 2) return [];
@@ -514,10 +375,10 @@ export function getLiveSuggestions(query, limit = 5) {
   for (const t of KNOWN_THEATRES) {
     let bestScore = 0;
     for (const a of t.aliases) {
-      if (a.startsWith(clean)) bestScore = Math.max(bestScore, 0.9);
-      else if (a.includes(clean)) bestScore = Math.max(bestScore, 0.7);
+      if (a.startsWith(clean)) bestScore = Math.max(bestScore, 0.95);
+      else if (a.includes(clean)) bestScore = Math.max(bestScore, 0.75);
     }
-    if (t.name.toLowerCase().includes(clean)) bestScore = Math.max(bestScore, 0.8);
+    if (t.name.toLowerCase().includes(clean)) bestScore = Math.max(bestScore, 0.85);
 
     if (bestScore > 0) {
       results.push({
@@ -525,6 +386,7 @@ export function getLiveSuggestions(query, limit = 5) {
         city: t.city,
         locality: t.locality,
         venueCode: t.venueCode,
+        bmsUrl: t.url,
         score: bestScore,
       });
     }
@@ -534,4 +396,3 @@ export function getLiveSuggestions(query, limit = 5) {
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
-

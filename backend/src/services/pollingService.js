@@ -41,11 +41,34 @@ export function computeSmartPhase() {
 // Track active polling timers
 const activeTimers = new Map();
 
+function needsUrlRepair(url) {
+  if (!url) return true;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return true;
+  return /\/(AAAC|AMBC|PVND|SUDX)\/|\/explore\/cinemas-|\/\d{6}$/i.test(url);
+}
+
 /**
  * Start polling for all active alerts
  */
 export async function startPolling() {
   console.log('[Poller] Starting polling engine (1 check every 30 minutes)...');
+
+  // Auto-repair any existing alerts (watching or triggered) that have outdated/broken BMS links
+  const allAlerts = await Alert.find({ status: { $ne: 'expired' } });
+  for (const alert of allAlerts) {
+    if (needsUrlRepair(alert.bmsUrl)) {
+      const healed = await resolveTheatre(alert.theatreName || alert.bmsUrl, alert.city);
+      if (healed?.bmsUrl) {
+        console.log(`[Poller] Repaired BMS link for "${alert.theatreName}" -> ${healed.theatreName} (${healed.bmsUrl})`);
+        alert.theatreName = healed.theatreName;
+        alert.bmsUrl = healed.bmsUrl;
+        if (alert.bookingUrl && needsUrlRepair(alert.bookingUrl)) {
+          alert.bookingUrl = healed.bmsUrl;
+        }
+        await alert.save();
+      }
+    }
+  }
 
   const activeAlerts = await Alert.find({ status: 'watching' });
   console.log(`[Poller] Found ${activeAlerts.length} active alerts to watch`);

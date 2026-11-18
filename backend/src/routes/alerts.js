@@ -36,33 +36,29 @@ function parseBmsUrl(url) {
 }
 
 /**
- * Format theatre name to proper title case & recognizable acronyms
+ * Format theatre name to clean title case when not already resolved
  */
 function formatTheatreName(raw) {
   if (!raw) return 'Multiplex Cinema';
-  const clean = raw.trim().toLowerCase();
-  if (clean.includes('aaa')) return 'AAA Cinemas (AAAC)';
-  if (clean.includes('prasad')) return 'Prasads Multiplex (PRHN)';
-  if (clean.includes('amb')) return 'AMB Cinemas (AMBC)';
-  if (clean.includes('pvr') && clean.includes('nexus')) return 'PVR Inox Nexus (PVND)';
-  if (clean.includes('pvr')) return 'PVR Cinemas';
-  if (clean.includes('inox')) return 'INOX Cinemas';
-  if (clean.includes('sudarshan')) return 'Sudarshan 35MM (SUDX)';
   return raw.trim().replace(/\b[a-z]/g, l => l.toUpperCase());
 }
 
 /**
- * Resolves a direct BookMyShow booking URL if user manually entered cinema name
+ * Resolves a verified BookMyShow venue URL fallback
  */
-function resolveBmsUrl(theatreName, city = 'hyderabad', targetDate = '20261217') {
+function resolveBmsUrl(theatreName, city = 'hyderabad') {
   const clean = (theatreName || '').toLowerCase();
-  const cleanDate = targetDate ? targetDate.replace(/[^0-9]/g, '') : '20261217';
-  if (clean.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${cleanDate}`;
-  if (clean.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${cleanDate}`;
-  if (clean.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${cleanDate}`;
-  if (clean.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${cleanDate}`;
-  if (clean.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${cleanDate}`;
-  return `https://in.bookmyshow.com/explore/cinemas-${city.toLowerCase()}`;
+  if (clean.includes('aaa')) return 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS';
+  if (clean.includes('allu')) return 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO';
+  if (clean.includes('prasad')) return 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/PRHN';
+  if (clean.includes('amb')) return 'https://in.bookmyshow.com/cinemas/amb-cinemas-gachibowli/AMBG';
+  if (clean.includes('pvr') && clean.includes('nexus')) return 'https://in.bookmyshow.com/cinemas/pvr-nexus-mall-kukatpally-hyderabad/PVNK';
+  if (clean.includes('sudarshan')) return 'https://in.bookmyshow.com/cinemas/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2485';
+  if (clean.includes('devi')) return 'https://in.bookmyshow.com/cinemas/devi-70mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2483';
+  if (clean.includes('sandhya')) return 'https://in.bookmyshow.com/cinemas/sandhya-70mm-rtc-x-roads-hyderabad/SAND';
+  if (clean.includes('bramaramba') || clean.includes('bhramaramba')) return 'https://in.bookmyshow.com/cinemas/bhramaramba-70mm-kukatpally-hyderabad/BHRA';
+  if (clean.includes('avd')) return 'https://in.bookmyshow.com/cinemas/avd-cinemas-mahbubnagar/AVDM';
+  return `https://in.bookmyshow.com/explore/cinemas-${(city || 'hyderabad').toLowerCase()}`;
 }
 
 /**
@@ -88,39 +84,41 @@ router.post('/', async (req, res) => {
     let cleanBmsUrl = (bmsUrl || '').trim();
     let cleanTheatre = (theatreName || '').trim();
 
-    // If user entered cinema name in URL box (e.g. "aaa cinemas" or "Prasads")
-    if (cleanBmsUrl && !cleanBmsUrl.startsWith('http')) {
-      if (!cleanTheatre || cleanTheatre === 'Selected Multiplex') {
+    // If user entered cinema name in URL box OR frontend sent generic explore fallback
+    if (cleanBmsUrl && (!cleanBmsUrl.startsWith('http') || cleanBmsUrl.includes('/explore/cinemas-'))) {
+      if (!cleanBmsUrl.startsWith('http') && (!cleanTheatre || cleanTheatre === 'Selected Multiplex')) {
         cleanTheatre = cleanBmsUrl;
       }
       cleanBmsUrl = '';
     }
 
-    // Auto-extract details if user provided a BMS URL directly
+    // Auto-extract details if user provided a direct BMS URL
     let parsed = {};
     if (cleanBmsUrl) {
       parsed = parseBmsUrl(cleanBmsUrl);
     }
 
     const finalMovieName = (movieName && movieName.trim()) ? movieName.trim() : 'Any Show';
-    const finalCity = (city || parsed.city || 'hyderabad').toLowerCase();
+    let finalCity = (city || parsed.city || 'hyderabad').toLowerCase();
     const finalTargetDate = targetDate || parsed.targetDate;
     let finalTheatreName = cleanTheatre || parsed.theatreName;
     let finalBmsUrl = cleanBmsUrl;
+    let finalVenueCode = venueCode || parsed.venueCode;
 
-    // Use AI & Fuzzy Resolver for any local or non-standard theatre name
+    // Always run Verified DB + SerpApi Live BMS Lookup + Gemini AI when no direct venue URL was pasted
     if (!finalBmsUrl && finalTheatreName) {
-      const resolved = await resolveTheatre(finalTheatreName, finalCity, finalTargetDate);
+      const resolved = await resolveTheatre(finalTheatreName, finalCity);
       if (resolved) {
         finalTheatreName = resolved.theatreName;
         finalBmsUrl = resolved.bmsUrl;
+        finalCity = resolved.city || finalCity;
+        finalVenueCode = resolved.venueCode || finalVenueCode;
       }
     }
 
-    finalTheatreName = formatTheatreName(finalTheatreName);
-    finalBmsUrl = finalBmsUrl || resolveBmsUrl(finalTheatreName, finalCity, finalTargetDate);
-    const finalVenueCode = venueCode || parsed.venueCode;
-    const finalWatchType = watchType || (cleanBmsUrl ? 'new_shows' : 'booking_open');
+    finalTheatreName = finalTheatreName || formatTheatreName(cleanTheatre);
+    finalBmsUrl = finalBmsUrl || resolveBmsUrl(finalTheatreName, finalCity);
+    const finalWatchType = watchType || 'new_shows';
 
     // If watching for new shows, fetch the current shows baseline right now
     let initialShows = [];

@@ -7,42 +7,24 @@ import {
 import api from '../api/client';
 
 const POPULAR_CINEMAS = [
-  { name: 'AAA Cinemas (AAAC)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/20261217' },
-  { name: 'Prasads Multiplex (PRHN)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217' },
-  { name: 'AMB Cinemas (AMBC)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/20261217' },
-  { name: 'PVR Inox Nexus (PVND)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/20261217' },
-  { name: 'Sudarshan 35MM (RTC X Roads)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/20261217' },
+  { name: 'AAA Cinemas (Ameerpet)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS' },
+  { name: 'ALLU Cinemas (Kokapet)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO' },
+  { name: 'Prasads Multiplex (Necklace Road)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/PRHN' },
+  { name: 'AMB Cinemas (Gachibowli)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/amb-cinemas-gachibowli/AMBG' },
+  { name: 'PVR: Nexus Mall (Kukatpally)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/pvr-nexus-mall-kukatpally-hyderabad/PVNK' },
+  { name: 'Sudarshan 35MM (RTC X Roads)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2485' },
 ];
 
 const formatCinemaName = (raw) => {
   if (!raw) return '';
-  const lower = raw.trim().toLowerCase();
-  if (lower.includes('aaa')) return 'AAA Cinemas (AAAC)';
-  if (lower.includes('prasad')) return 'Prasads Multiplex (PRHN)';
-  if (lower.includes('amb')) return 'AMB Cinemas (AMBC)';
-  if (lower.includes('pvr') && lower.includes('nexus')) return 'PVR Inox Nexus (PVND)';
-  if (lower.includes('pvr')) return 'PVR Cinemas';
-  if (lower.includes('inox')) return 'INOX Cinemas';
-  if (lower.includes('sudarshan')) return 'Sudarshan 35MM (SUDX)';
   return raw.trim().replace(/\b[a-z]/g, l => l.toUpperCase());
-};
-
-const resolveBmsUrlClient = (theatreName, city = 'hyderabad', targetDate = '') => {
-  const clean = (theatreName || '').toLowerCase();
-  const cleanDate = targetDate ? targetDate.replace(/[^0-9]/g, '') : '20261117';
-  if (clean.includes('aaa')) return `https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/${cleanDate}`;
-  if (clean.includes('prasad')) return `https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/${cleanDate}`;
-  if (clean.includes('amb')) return `https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/${cleanDate}`;
-  if (clean.includes('pvr')) return `https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/${cleanDate}`;
-  if (clean.includes('sudarshan')) return `https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/${cleanDate}`;
-  return `https://in.bookmyshow.com/explore/cinemas-${(city || 'hyderabad').toLowerCase()}`;
 };
 
 const getUpcomingDates = () => {
   const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   
-  const dates = Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: 8 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
     const dayLabel = i === 0 ? 'TODAY' : i === 1 ? 'TOM' : days[d.getDay()];
@@ -58,18 +40,6 @@ const getUpcomingDates = () => {
       isoDate: `${year}-${String(d.getMonth() + 1).padStart(2, '0')}-${dateNum}`,
     };
   });
-
-  // Add blockbuster drop preset
-  dates.push({
-    label: 'DOOMSDAY',
-    dayNum: '17',
-    month: 'DEC 26',
-    displayDate: '17 DEC 2026',
-    bmsDateSlug: '20261217',
-    isoDate: '2026-12-17',
-  });
-
-  return dates;
 };
 
 const UPCOMING_DATES = getUpcomingDates();
@@ -119,16 +89,11 @@ function SetAlert() {
   }, [form.bmsUrl, form.theatreName, mode]);
 
   const selectSuggestion = (s) => {
-    const cleanDate = form.targetDate ? form.targetDate.replace(/[^0-9]/g, '') : '20261118';
-    const cityCode = s.city === 'hyderabad' ? 'HYD' : (s.city === 'bengaluru' ? 'BANG' : 'MUM');
-    const slug = s.theatreName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const bmsUrl = `https://in.bookmyshow.com/cinemas/${cityCode}/${slug}/buytickets/${s.venueCode || 'VNU1'}/${cleanDate}`;
-
     setForm(prev => ({
       ...prev,
       theatreName: s.theatreName,
-      city: s.city,
-      bmsUrl: bmsUrl,
+      city: s.city || prev.city,
+      bmsUrl: s.bmsUrl || '',
     }));
     setSuggestions([]);
   };
@@ -237,20 +202,15 @@ function SetAlert() {
     setLoading(true);
     setError('');
 
-    let cleanTheatre = formatCinemaName(form.theatreName) || form.theatreName;
-    if (!cleanTheatre || cleanTheatre === 'Selected Multiplex') {
-      cleanTheatre = formatCinemaName(form.bmsUrl) || 'AAA Cinemas (AAAC)';
-    }
-
-    const cleanDate = form.targetDate ? form.targetDate.replace(/[^0-9]/g, '') : '20261117';
-    let cleanUrl = form.bmsUrl ? form.bmsUrl.trim() : '';
-    if (!cleanUrl.startsWith('http')) {
-      cleanUrl = resolveBmsUrlClient(cleanTheatre, form.city, cleanDate);
-    }
+    const rawUrlInput = (form.bmsUrl || '').trim();
+    const isDirectUrl = rawUrlInput.startsWith('http://') || rawUrlInput.startsWith('https://');
+    const cleanTheatre = (form.theatreName && form.theatreName !== 'Selected Multiplex')
+      ? form.theatreName.trim()
+      : (!isDirectUrl ? rawUrlInput : '');
 
     try {
-      await api.post('/api/alerts', {
-        bmsUrl: cleanUrl,
+      const { data } = await api.post('/api/alerts', {
+        bmsUrl: isDirectUrl ? rawUrlInput : '',
         movieName: form.movieName,
         eventCode: 'UNKNOWN',
         city: form.city,
@@ -261,7 +221,12 @@ function SetAlert() {
         phoneNumber: form.phoneNumber || null,
         notificationMethod: form.notificationMethod,
       });
-      setForm(prev => ({ ...prev, theatreName: cleanTheatre, bmsUrl: cleanUrl }));
+      const saved = data?.alert;
+      setForm(prev => ({
+        ...prev,
+        theatreName: saved?.theatreName || cleanTheatre,
+        bmsUrl: saved?.bmsUrl || prev.bmsUrl,
+      }));
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to initialize alarm. Please try again.');
@@ -555,22 +520,8 @@ function SetAlert() {
                 type="text"
                 value={form.theatreName}
                 onChange={e => {
-                  const val = e.target.value;
-                  updateField('theatreName', val);
-                  const lower = val.toLowerCase();
-                  if (lower.includes('aaa')) {
-                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/aaa-cinemas-ameerpet/buytickets/AAAC/20261217');
-                  } else if (lower.includes('prasad')) {
-                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217');
-                  } else if (lower.includes('amb')) {
-                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/amb-cinemas-gachibowli/buytickets/AMBC/20261217');
-                  } else if (lower.includes('pvr')) {
-                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/pvr-nexus-mall-kukatpally/buytickets/PVND/20261217');
-                  } else if (lower.includes('sudarshan')) {
-                    updateField('bmsUrl', 'https://in.bookmyshow.com/cinemas/HYD/sudarshan-35mm-rtc-x-roads/buytickets/SUDX/20261217');
-                  } else {
-                    updateField('bmsUrl', '');
-                  }
+                  updateField('theatreName', e.target.value);
+                  updateField('bmsUrl', '');
                 }}
                 placeholder="e.g. AAA Cinemas Ameerpet, Sudarshan 35MM, PVR, Devi 70MM..."
                 className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm font-bold text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"
