@@ -206,18 +206,117 @@ export async function sendWhatsApp(toPhone, message, context = {}) {
 }
 
 /**
- * Universal Mobile Alert Dispatcher
- * Sends to Mobile Number via WhatsApp, SMS, or Both!
+ * Build Neo-Brutalist Acid HTML Email (Zero Emojis)
+ */
+function buildEmailHtml({ badge, title, subtitle, rows, ctaLabel, ctaUrl, footerNote }) {
+  const rowsHtml = rows
+    .filter(r => r.value)
+    .map(
+      r => `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #27272A;color:#D2E823;font-family:monospace;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">${r.label}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #27272A;color:#FDFBF7;font-family:monospace;font-size:13px;font-weight:700;text-align:right;">${r.value}</td>
+        </tr>`
+    )
+    .join('');
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background-color:#FDFBF7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#09090B;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background-color:#FDFBF7;border:3px solid #09090B;border-radius:16px;box-shadow:6px 6px 0px #09090B;">
+    <tr>
+      <td style="padding:28px 28px 20px 28px;">
+        <div style="display:inline-block;background-color:#D2E823;border:2px solid #09090B;border-radius:999px;padding:4px 12px;font-family:monospace;font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#09090B;">
+          ${badge}
+        </div>
+        <h1 style="margin:16px 0 8px 0;font-size:26px;font-weight:900;letter-spacing:-0.03em;text-transform:uppercase;color:#09090B;">
+          ${title}
+        </h1>
+        <p style="margin:0 0 20px 0;font-size:14px;line-height:1.5;color:#27272A;">
+          ${subtitle}
+        </p>
+
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#09090B;border:2px solid #09090B;border-radius:12px;padding:14px 18px;margin-bottom:24px;">
+          ${rowsHtml}
+        </table>
+
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <a href="${ctaUrl}" target="_blank" style="display:inline-block;background-color:#D2E823;color:#09090B;border:2px solid #09090B;border-radius:10px;padding:14px 28px;font-size:14px;font-weight:900;text-decoration:none;text-transform:uppercase;letter-spacing:0.04em;">
+                ${ctaLabel}
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <p style="margin:22px 0 0 0;font-family:monospace;font-size:11px;line-height:1.5;color:#52525B;text-align:center;">
+          ${footerNote}
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Send Transactional Email via Brevo (formerly Sendinblue) API
+ * Free tier: 300 emails/day to ANY email address worldwide.
+ */
+export async function sendBrevoEmail(toEmail, subject, htmlContent, textContent) {
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  const senderName = process.env.BREVO_SENDER_NAME || 'Dropclock Radar';
+
+  if (!apiKey || !senderEmail) {
+    console.log(`[Brevo Email - Simulation] To: ${toEmail}\nSubject: ${subject}\n${textContent}`);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const res = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { name: senderName, email: senderEmail },
+        to: [{ email: toEmail.trim() }],
+        subject,
+        htmlContent,
+        textContent,
+      },
+      {
+        headers: {
+          'api-key': apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
+    console.log(`[Brevo Email] Sent to ${toEmail}, messageId:`, res.data?.messageId);
+    return { success: true, messageId: res.data?.messageId };
+  } catch (error) {
+    const errData = error.response?.data || error.message;
+    console.error(`[Brevo Email] Failed to send to ${toEmail}:`, errData);
+    return { success: false, error: errData };
+  }
+}
+
+/**
+ * Universal Alert Dispatcher
+ * Sends via Brevo Email, WhatsApp, SMS, or All
  */
 export async function sendMobileAlert(alert, bookingData) {
-  if (!alert.phoneNumber) return false;
+  if (!alert.phoneNumber && !alert.email) return false;
 
   const bookingUrl = bookingData.url || alert.bmsUrl || `https://in.bookmyshow.com/cinemas`;
-  
   const isNewShow = bookingData.isNewShowAlert;
   const headline = isNewShow ? '[DROPCLOCK] ALERT: NEW SHOWS OPENED' : '[DROPCLOCK] ALERT: BOOKINGS ARE LIVE';
-  const showList = bookingData.showtimes?.length > 0 
-    ? (isNewShow ? `New Shows: ${bookingData.showtimes.join(', ')}\n` : `Showtimes: ${bookingData.showtimes.slice(0, 5).join(', ')}\n`)
+  const showtimesStr = bookingData.showtimes?.length > 0
+    ? (isNewShow ? bookingData.showtimes.join(', ') : bookingData.showtimes.slice(0, 5).join(', '))
+    : '';
+  const showList = showtimesStr
+    ? (isNewShow ? `New Shows: ${showtimesStr}\n` : `Showtimes: ${showtimesStr}\n`)
     : '';
 
   const textMessage = 
@@ -233,7 +332,7 @@ Book your seats before they sell out:
 ${bookingUrl}`;
 
   let success = false;
-  const method = alert.notificationMethod || 'whatsapp';
+  const method = alert.notificationMethod || (alert.email ? 'email' : 'whatsapp');
   const context = {
     movie: alert.movieName || 'All Shows',
     theatre: alert.theatreName,
@@ -241,12 +340,33 @@ ${bookingUrl}`;
     link: bookingUrl,
   };
 
-  if (method === 'whatsapp' || method === 'all') {
+  if (alert.email && (method === 'email' || method === 'all')) {
+    const html = buildEmailHtml({
+      badge: isNewShow ? 'NEW SHOWS DROPPED' : 'BOOKINGS LIVE NOW',
+      title: `${alert.movieName || 'NEW SHOWS'} - BOOK NOW`,
+      subtitle: 'BookMyShow just opened new showtimes at your watched theatre. Tap below to lock your seats immediately.',
+      rows: [
+        { label: 'Movie', value: alert.movieName || 'All Shows' },
+        { label: 'Theatre', value: alert.theatreName },
+        { label: 'City', value: alert.city.toUpperCase() },
+        { label: 'Date', value: alert.targetDate || 'Selected Date' },
+        { label: 'Showtimes', value: showtimesStr || 'Live Now' },
+      ],
+      ctaLabel: 'Book on BookMyShow',
+      ctaUrl: bookingUrl,
+      footerNote: 'Dispatched instantly by Dropclock 24/7 Showtime Radar.',
+    });
+    const subject = `${headline} - ${alert.movieName || 'Showtimes'} at ${alert.theatreName}`;
+    const res = await sendBrevoEmail(alert.email, subject, html, textMessage);
+    if (res?.success) success = true;
+  }
+
+  if (alert.phoneNumber && (method === 'whatsapp' || method === 'all')) {
     const res = await sendWhatsApp(alert.phoneNumber, textMessage, context);
     if (res?.success) success = true;
   }
 
-  if (method === 'sms' || method === 'all') {
+  if (alert.phoneNumber && (method === 'sms' || method === 'all')) {
     const res = await sendSMS(alert.phoneNumber, textMessage, context);
     if (res?.success) success = true;
   }
@@ -255,10 +375,12 @@ ${bookingUrl}`;
 }
 
 /**
- * Send Immediate Alarm Armed Confirmation to Mobile
+ * Send Immediate Alarm Armed Confirmation via Brevo Email / WhatsApp / SMS
  */
 export async function sendAlarmArmedNotification(alert) {
-  if (!alert.phoneNumber) return { success: false, error: 'No phone number provided' };
+  if (!alert.phoneNumber && !alert.email) {
+    return { success: false, error: 'No email or phone number provided' };
+  }
 
   const textMessage = 
 `[DROPCLOCK] RADAR ACTIVE
@@ -271,13 +393,13 @@ City: ${alert.city.toUpperCase()}
 Target Date: ${alert.targetDate || 'Selected Date'}
 Status: Scanning BookMyShow every 30 seconds
 
-Dropclock is monitoring this venue continuously. The second new showtimes or midnight screens open, you will receive an immediate mobile dispatch with the direct booking deep-link.
+Dropclock is monitoring this venue continuously. The second new showtimes or midnight screens open, you will receive an immediate alert with the direct booking deep-link.
 
 Manage Radars:
 https://wholedropreminder.vercel.app/dashboard`;
 
   const results = {};
-  const method = alert.notificationMethod || 'whatsapp';
+  const method = alert.notificationMethod || (alert.email ? 'email' : 'whatsapp');
   const context = {
     movie: alert.movieName || 'All Shows',
     theatre: alert.theatreName,
@@ -285,15 +407,35 @@ https://wholedropreminder.vercel.app/dashboard`;
     link: 'https://wholedropreminder.vercel.app/dashboard',
   };
 
-  if (method === 'whatsapp' || method === 'all') {
+  if (alert.email && (method === 'email' || method === 'all')) {
+    const html = buildEmailHtml({
+      badge: 'RADAR ACTIVE - 24/7 WATCHING',
+      title: 'ALARM ARMED',
+      subtitle: 'Dropclock is now scanning BookMyShow every 30 seconds. The moment new showtimes or midnight screens open, we will send you a direct booking link.',
+      rows: [
+        { label: 'Movie', value: alert.movieName || 'All Shows (Auto-Detect)' },
+        { label: 'Theatre', value: alert.theatreName },
+        { label: 'City', value: alert.city.toUpperCase() },
+        { label: 'Target Date', value: alert.targetDate || 'Selected Date' },
+        { label: 'Scan Interval', value: 'Every 30 Seconds (HOT)' },
+      ],
+      ctaLabel: 'View Active Radars',
+      ctaUrl: 'https://wholedropreminder.vercel.app/dashboard',
+      footerNote: 'Dropclock - 24/7 BookMyShow Ticket Drop Alarm.',
+    });
+    const subject = `[DROPCLOCK] RADAR ACTIVE - ${alert.theatreName} (${alert.targetDate || 'Upcoming'})`;
+    results.email = await sendBrevoEmail(alert.email, subject, html, textMessage);
+  }
+
+  if (alert.phoneNumber && (method === 'whatsapp' || method === 'all')) {
     results.whatsapp = await sendWhatsApp(alert.phoneNumber, textMessage, context);
   }
 
-  if (method === 'sms' || method === 'all') {
+  if (alert.phoneNumber && (method === 'sms' || method === 'all')) {
     results.sms = await sendSMS(alert.phoneNumber, textMessage, context);
   }
 
-  const anySuccess = (results.whatsapp?.success || results.sms?.success);
+  const anySuccess = (results.email?.success || results.whatsapp?.success || results.sms?.success);
   return { success: !!anySuccess, results };
 }
 

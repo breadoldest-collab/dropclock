@@ -117,7 +117,7 @@ async function pollAlert(alertId) {
             isNewShowAlert: true,
           };
 
-          if (alert.phoneNumber) {
+          if (alert.phoneNumber || alert.email) {
             await sendMobileAlert(alert, bookingData);
           }
           if (alert.telegramChatId) {
@@ -169,7 +169,7 @@ async function pollAlert(alertId) {
         await sendTelegramAlert(alert.telegramChatId, alert, result);
       }
 
-      if (alert.phoneNumber) {
+      if (alert.phoneNumber || alert.email) {
         await sendMobileAlert(alert, result);
       }
 

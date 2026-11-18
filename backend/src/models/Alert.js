@@ -58,6 +58,12 @@ const alertSchema = new mongoose.Schema({
   },
 
   // Who to notify
+  email: {
+    type: String,
+    default: null,
+    trim: true,
+    lowercase: true,
+  },
   phoneNumber: {
     type: String,
     default: null,
@@ -65,8 +71,8 @@ const alertSchema = new mongoose.Schema({
   },
   notificationMethod: {
     type: String,
-    enum: ['whatsapp', 'sms', 'telegram', 'all'],
-    default: 'whatsapp',
+    enum: ['email', 'whatsapp', 'sms', 'telegram', 'all'],
+    default: 'email',
   },
   telegramChatId: {
     type: String,

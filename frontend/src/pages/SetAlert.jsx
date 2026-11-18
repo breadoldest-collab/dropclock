@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Bell, Film, MapPin, Building2, Hash, ArrowRight, 
-  Loader2, CheckCircle2, Phone, Link2, Calendar, Sparkles, PlusCircle, Zap, Search 
+  Loader2, CheckCircle2, Phone, Mail, Link2, Calendar, Sparkles, PlusCircle, Zap, Search 
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -88,8 +88,9 @@ function SetAlert() {
     isoDate: UPCOMING_DATES[0].isoDate,
     city: 'hyderabad',
     theatreName: '',
+    email: '',
     phoneNumber: '',
-    notificationMethod: 'whatsapp',
+    notificationMethod: 'email',
     watchType: 'new_shows',
   });
 
@@ -210,8 +211,21 @@ function SetAlert() {
   };
 
   const handleSubmit = async () => {
-    if (!form.phoneNumber) {
+    const needsEmail = form.notificationMethod === 'email' || form.notificationMethod === 'all';
+    const needsPhone = form.notificationMethod === 'whatsapp' || form.notificationMethod === 'sms';
+
+    if (needsEmail && (!form.email || !form.email.includes('@'))) {
+      setError('Please enter a valid email address for instant drop alerts.');
+      return;
+    }
+
+    if (needsPhone && !form.phoneNumber) {
       setError('Please provide your 10-digit mobile number.');
+      return;
+    }
+
+    if (!form.email && !form.phoneNumber) {
+      setError('Please enter your email address or mobile number.');
       return;
     }
 
@@ -243,7 +257,8 @@ function SetAlert() {
         theatreName: cleanTheatre,
         targetDate: form.targetDate,
         watchType: form.watchType,
-        phoneNumber: form.phoneNumber,
+        email: form.email ? form.email.trim() : null,
+        phoneNumber: form.phoneNumber || null,
         notificationMethod: form.notificationMethod,
       });
       setForm(prev => ({ ...prev, theatreName: cleanTheatre, bmsUrl: cleanUrl }));
@@ -256,6 +271,11 @@ function SetAlert() {
   };
 
   if (success) {
+    const dispatchSummary = [
+      form.email ? form.email : null,
+      form.phoneNumber ? `+91 ${form.phoneNumber}` : null,
+    ].filter(Boolean).join(' • ');
+
     return (
       <div className="max-w-2xl mx-auto px-4 py-16">
         <div className="bg-paper border-2 border-ink rounded-[24px] p-8 md:p-12 text-center shadow-hard-lg">
@@ -284,14 +304,14 @@ function SetAlert() {
               <span className="text-acid uppercase">DATE</span>
               <span className="font-bold">{form.targetDate}</span>
             </div>
-            <div className="flex justify-between pt-2">
-              <span className="text-acid uppercase">DISPATCH TO</span>
-              <span className="text-acid font-bold">+91 {form.phoneNumber} ({form.notificationMethod.toUpperCase()})</span>
+            <div className="flex justify-between pt-2 gap-4">
+              <span className="text-acid uppercase shrink-0">DISPATCH TO</span>
+              <span className="text-acid font-bold text-right break-all">{dispatchSummary} ({form.notificationMethod.toUpperCase()})</span>
             </div>
           </div>
 
           <p className="font-space text-sm text-ink/80 mb-8">
-            The instant BookMyShow adds a new showtime (e.g. Screen 6 PCX or midnight shows), you will receive an immediate mobile alert with a direct booking deep-link.
+            A confirmation has been dispatched. The instant BookMyShow adds a new showtime (e.g. Screen 6 PCX or midnight shows), you will receive an immediate alert with a direct booking deep-link.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -652,30 +672,8 @@ function SetAlert() {
           </div>
         )}
 
-        {/* COMMON FIELDS: MOBILE & CHANNELS */}
+        {/* COMMON FIELDS: CHANNELS, EMAIL & MOBILE */}
         <div className="mt-8 pt-8 border-t-2 border-ink space-y-6">
-          <div>
-            <label className="font-dela text-sm uppercase text-ink flex items-center gap-2 mb-2">
-              <Phone className="w-4 h-4 text-ink" />
-              Your Mobile Number (For Instant Buzz):
-            </label>
-            <div className="flex gap-2">
-              <span className="px-4 py-3.5 bg-acid border-2 border-ink rounded-[12px] font-mono font-bold text-sm text-ink shadow-hard-xs flex items-center">
-                +91
-              </span>
-              <input
-                type="tel"
-                value={form.phoneNumber}
-                onChange={e => updateField('phoneNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="9876543210"
-                className="flex-1 px-4 py-3.5 bg-paper border-2 border-ink rounded-[12px] font-mono font-bold text-base text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20 shadow-hard-xs"
-              />
-            </div>
-            <p className="font-mono text-[11px] text-ink/60 mt-1.5">
-              The exact second a new show drops, we dispatch an alert with a direct BMS link.
-            </p>
-          </div>
-
           {/* Delivery Channel Selection */}
           <div>
             <label className="font-mono text-xs font-bold text-ink/70 uppercase block mb-2">
@@ -683,9 +681,9 @@ function SetAlert() {
             </label>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { id: 'whatsapp', label: 'WhatsApp', desc: 'Clickable direct link' },
-                { id: 'sms', label: 'SMS', desc: 'Offline immediate buzz' },
-                { id: 'all', label: 'Both', desc: 'Maximum urgency' },
+                { id: 'email', label: 'Email (Free)', desc: 'Works for anyone' },
+                { id: 'whatsapp', label: 'WhatsApp', desc: 'Twilio mobile buzz' },
+                { id: 'all', label: 'Both', desc: 'Email + WhatsApp' },
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -704,6 +702,48 @@ function SetAlert() {
             </div>
           </div>
 
+          {/* Email Address Input (Brevo Free Transactional Email) */}
+          {(form.notificationMethod === 'email' || form.notificationMethod === 'all') && (
+            <div>
+              <label className="font-dela text-sm uppercase text-ink flex items-center gap-2 mb-2">
+                <Mail className="w-4 h-4 text-ink" />
+                Your Email Address (Instant Drop Link):
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => updateField('email', e.target.value)}
+                placeholder="you@gmail.com"
+                className="w-full px-4 py-3.5 bg-paper border-2 border-ink rounded-[12px] font-mono font-bold text-base text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20 shadow-hard-xs"
+              />
+              <p className="font-mono text-[11px] text-ink/60 mt-1.5">
+                Works for any email address worldwide with a clickable BookMyShow deep-link.
+              </p>
+            </div>
+          )}
+
+          {/* Mobile Number Input (WhatsApp / Both) */}
+          {(form.notificationMethod === 'whatsapp' || form.notificationMethod === 'all') && (
+            <div>
+              <label className="font-dela text-sm uppercase text-ink flex items-center gap-2 mb-2">
+                <Phone className="w-4 h-4 text-ink" />
+                Your Mobile Number (WhatsApp):
+              </label>
+              <div className="flex gap-2">
+                <span className="px-4 py-3.5 bg-acid border-2 border-ink rounded-[12px] font-mono font-bold text-sm text-ink shadow-hard-xs flex items-center">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  value={form.phoneNumber}
+                  onChange={e => updateField('phoneNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="9876543210"
+                  className="flex-1 px-4 py-3.5 bg-paper border-2 border-ink rounded-[12px] font-mono font-bold text-base text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20 shadow-hard-xs"
+                />
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-500/20 border-2 border-red-600 text-red-900 font-bold p-3 rounded-[10px] text-xs font-mono">
               [ERROR] {error}
@@ -713,7 +753,12 @@ function SetAlert() {
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
-            disabled={loading || !form.phoneNumber}
+            disabled={
+              loading ||
+              (form.notificationMethod === 'email' && !form.email.includes('@')) ||
+              (form.notificationMethod === 'whatsapp' && !form.phoneNumber) ||
+              (form.notificationMethod === 'all' && !form.email.includes('@') && !form.phoneNumber)
+            }
             className="btn-hard w-full py-5 bg-ink text-acid font-dela text-base md:text-lg uppercase tracking-tight rounded-[14px] flex items-center justify-center gap-3 shadow-hard-lg hover:bg-ink disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? (

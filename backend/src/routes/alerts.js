@@ -79,6 +79,7 @@ router.post('/', async (req, res) => {
       city, 
       targetDate,
       watchType,
+      email,
       phoneNumber,
       notificationMethod,
       telegramChatId,
@@ -143,8 +144,9 @@ router.post('/', async (req, res) => {
       targetDate: finalTargetDate,
       watchType: finalWatchType,
       knownShows: initialShows,
+      email: email ? email.trim().toLowerCase() : null,
       phoneNumber: phoneNumber || null,
-      notificationMethod: notificationMethod || 'whatsapp',
+      notificationMethod: notificationMethod || (email ? 'email' : 'whatsapp'),
       telegramChatId: telegramChatId || null,
       status: 'watching',
       pollPhase: 'hot', // Default to hot (30s) when monitoring imminent new shows!
@@ -153,7 +155,7 @@ router.post('/', async (req, res) => {
     await alert.save();
     addToPolling(alert);
 
-    // Send immediate confirmation to WhatsApp / SMS
+    // Send immediate confirmation via Brevo Email / WhatsApp / SMS
     sendAlarmArmedNotification(alert).catch(err => {
       console.warn('[Notification] Failed to send instant confirmation:', err.message);
     });
@@ -173,14 +175,15 @@ router.post('/', async (req, res) => {
  */
 router.post('/test-dispatch', async (req, res) => {
   try {
-    const { phoneNumber, method } = req.body;
+    const { email, phoneNumber, method } = req.body;
     const testAlert = {
       movieName: 'Avengers Doomsday',
       theatreName: 'AAA Cinemas (AAAC)',
       city: 'hyderabad',
       targetDate: '17 DEC 2026',
-      phoneNumber: phoneNumber || '9381148844',
-      notificationMethod: method || 'all',
+      email: email || process.env.BREVO_SENDER_EMAIL || null,
+      phoneNumber: phoneNumber || null,
+      notificationMethod: method || (email ? 'email' : 'all'),
     };
     const result = await sendAlarmArmedNotification(testAlert);
     res.json(result);

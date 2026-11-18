@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Bell, Eye, Zap, Trash2, Plus, 
-  Clock, Film, MapPin, RefreshCw, Loader2, Phone, ExternalLink 
+  Clock, Film, MapPin, RefreshCw, Loader2, Phone, Mail, ExternalLink 
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -219,15 +219,27 @@ function Dashboard() {
                         </span>
                       </>
                     )}
+                    {alert.email && (
+                      <>
+                        <span>•</span>
+                        <span className="flex items-center gap-1 font-bold text-ink">
+                          <Mail className="w-3 h-3" />
+                          {alert.email}
+                        </span>
+                      </>
+                    )}
                     {alert.phoneNumber && (
                       <>
                         <span>•</span>
                         <span className="flex items-center gap-1 font-bold text-ink">
                           <Phone className="w-3 h-3" />
-                          +91 {alert.phoneNumber} ({alert.notificationMethod?.toUpperCase()})
+                          +91 {alert.phoneNumber}
                         </span>
                       </>
                     )}
+                    <span className="text-[10px] uppercase text-ink/60 font-bold">
+                      ({alert.notificationMethod?.toUpperCase()})
+                    </span>
                   </div>
 
                   {/* Known Shows Baseline */}
