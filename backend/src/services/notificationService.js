@@ -158,7 +158,6 @@ export async function sendWhatsApp(toPhone, message, context = {}) {
     params.append('From', from);
     if (configuredContentSid) {
       params.append('ContentSid', configuredContentSid);
-      params.append('ContentVariables', JSON.stringify({ '1': context.date || '17 DEC 2026', '2': context.theatre || 'AAA Cinemas' }));
     } else {
       params.append('Body', message);
     }
@@ -174,39 +173,32 @@ export async function sendWhatsApp(toPhone, message, context = {}) {
       }
     );
     console.log(`[WhatsApp] Message sent to ${toPhone}, sid:`, res.data?.sid);
-    return { success: true, sid: res.data?.sid };
+    return { success: true, sid: res.data?.sid, body: res.data?.body };
   } catch (error) {
     const errData = error.response?.data || error.message;
-    // Trial account fallback: automatically discover & use Twilio ContentSid template
+    // Trial account fallback: use Twilio Trial Event Notification ContentSid
     if (errData?.code === 21654) {
-      const templates = await fetchTwilioContentTemplates();
-      const tpl = templates.find(t => /event|remind|appoint|alert|notif/i.test(t.friendly_name || '')) || templates[0];
-      if (tpl?.sid) {
-        try {
-          const retryParams = new URLSearchParams();
-          retryParams.append('To', `whatsapp:${formattedTo}`);
-          retryParams.append('From', from);
-          retryParams.append('ContentSid', tpl.sid);
-          if (Object.keys(tpl.variables || {}).length > 0) {
-            retryParams.append('ContentVariables', buildTemplateVariables(tpl, context));
+      const fallbackSid = configuredContentSid || 'HX8dc9eea84231541b091557c47cc2a342';
+      try {
+        const retryParams = new URLSearchParams();
+        retryParams.append('To', `whatsapp:${formattedTo}`);
+        retryParams.append('From', from);
+        retryParams.append('ContentSid', fallbackSid);
+        const retryRes = await axios.post(
+          `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+          retryParams,
+          {
+            headers: {
+              Authorization: `Basic ${auth}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
           }
-          const retryRes = await axios.post(
-            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-            retryParams,
-            {
-              headers: {
-                Authorization: `Basic ${auth}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
-            }
-          );
-          console.log(`[WhatsApp] Sent via trial template ${tpl.friendly_name} (${tpl.sid}), sid:`, retryRes.data?.sid);
-          return { success: true, sid: retryRes.data?.sid, templateUsed: tpl.friendly_name };
-        } catch (retryErr) {
-          return { success: false, error: retryErr.response?.data || retryErr.message, originalError: errData, availableTemplates: templates.map(t => ({ sid: t.sid, name: t.friendly_name, vars: t.variables })) };
-        }
+        );
+        console.log(`[WhatsApp] Sent via Twilio Trial template (${fallbackSid}), sid:`, retryRes.data?.sid);
+        return { success: true, sid: retryRes.data?.sid, templateSid: fallbackSid, body: retryRes.data?.body };
+      } catch (retryErr) {
+        return { success: false, error: retryErr.response?.data || retryErr.message, originalError: errData };
       }
-      return { success: false, error: errData, availableTemplatesCount: templates.length };
     }
     console.error(`[WhatsApp] Failed to send WhatsApp to ${toPhone}:`, errData);
     return { success: false, error: errData };
