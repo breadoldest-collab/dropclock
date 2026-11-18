@@ -5,15 +5,33 @@ const router = express.Router();
 
 /**
  * GET /api/theatres/suggest?q=...
- * Returns matching theatres for autocomplete dropdown
+ * Returns matching theatres for autocomplete dropdown (with Gemini AI fallback)
  */
-router.get('/suggest', (req, res) => {
+router.get('/suggest', async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, city, date } = req.query;
     if (!q || q.trim().length < 2) {
       return res.json({ suggestions: [] });
     }
-    const suggestions = getLiveSuggestions(q.trim());
+    const clean = q.trim();
+    let suggestions = getLiveSuggestions(clean);
+
+    // If no instant local match and query is >= 3 chars, resolve via Gemini AI
+    if (suggestions.length === 0 && clean.length >= 3) {
+      const aiMatch = await resolveTheatre(clean, city || 'hyderabad', date || '20261118');
+      if (aiMatch && aiMatch.theatreName) {
+        suggestions = [{
+          theatreName: aiMatch.theatreName,
+          city: aiMatch.city,
+          locality: aiMatch.locality,
+          venueCode: aiMatch.venueCode,
+          bmsUrl: aiMatch.bmsUrl,
+          score: 1.0,
+          source: aiMatch.source,
+        }];
+      }
+    }
+
     res.json({ suggestions });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch suggestions' });
@@ -38,3 +56,4 @@ router.get('/resolve', async (req, res) => {
 });
 
 export default router;
+

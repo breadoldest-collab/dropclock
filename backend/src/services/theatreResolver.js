@@ -417,7 +417,7 @@ Reply strictly with JSON only without markdown formatting:
 }`;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -425,14 +425,15 @@ Reply strictly with JSON only without markdown formatting:
           responseMimeType: 'application/json',
         },
       },
-      { timeout: 5000 }
+      { timeout: 12000 }
     );
 
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
 
-    const data = JSON.parse(text);
-    if (!data.theatreName) return null;
+    let data = JSON.parse(text);
+    if (Array.isArray(data) && data.length > 0) data = data[0];
+    if (!data || !data.theatreName) return null;
 
     const cleanDate = targetDate.replace(/[^0-9]/g, '') || '20261118';
     const citySlug = (data.city || city).toLowerCase();
@@ -533,3 +534,4 @@ export function getLiveSuggestions(query, limit = 5) {
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+
