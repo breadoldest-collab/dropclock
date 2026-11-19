@@ -157,11 +157,23 @@ async function pollAlert(alertId) {
         const currentShows = cinemaResult.shows;
         const previousShows = alert.knownShows || [];
 
-        // Check if there are any new shows that were not in knownShows
+        // If knownShows was never initialized (first scan), record these as the baseline
+        // so we don't trigger a false alarm for shows that ALREADY existed!
+        if (previousShows.length === 0) {
+          alert.knownShows = currentShows;
+          alert.lastCheckedAt = new Date();
+          alert.checkCount += 1;
+          await alert.save();
+          console.log(`[Poller] Initialized baseline with ${currentShows.length} existing shows for ${alert.theatreName} on ${alert.targetDate || 'target date'}`);
+          scheduleNextPoll(alert);
+          return;
+        }
+
+        // Compare against the established baseline to find truly NEW shows
         const brandNewShows = currentShows.filter(s => !previousShows.includes(s));
 
         if (brandNewShows.length > 0) {
-          console.log(`[Poller] 🚨 NEW SHOWS ADDED at ${alert.theatreName}:`, brandNewShows);
+          console.log(`[Poller] 🚨 TRULY NEW SHOWS ADDED at ${alert.theatreName}:`, brandNewShows);
 
           alert.status = 'triggered';
           alert.triggeredAt = new Date();
@@ -187,16 +199,16 @@ async function pollAlert(alertId) {
           activeTimers.delete(alertId);
           return;
         } else {
-          // If knownShows was empty on initial creation, initialize it
-          if (previousShows.length === 0) {
-            alert.knownShows = currentShows;
-            console.log(`[Poller] Initialized baseline with ${currentShows.length} shows for ${alert.theatreName}`);
-          }
+          // No new shows added yet
+          alert.lastCheckedAt = new Date();
+          alert.checkCount += 1;
           await alert.save();
           scheduleNextPoll(alert);
           return;
         }
       } else {
+        alert.lastCheckedAt = new Date();
+        alert.checkCount += 1;
         await alert.save();
         scheduleNextPoll(alert);
         return;
@@ -309,6 +321,13 @@ export async function escalateAlert(alertId, phase = 'hot') {
 }
 
 /**
+ * Manually trigger an immediate poll check for an alert
+ */
+export async function pollSingleAlert(alertId) {
+  return await pollAlert(alertId);
+}
+
+/**
  * Get polling stats
  */
 export function getPollingStats() {
@@ -323,6 +342,7 @@ export default {
   addToPolling,
   removeFromPolling,
   escalateAlert,
+  pollSingleAlert,
   getPollingStats,
 };
 

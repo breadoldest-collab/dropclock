@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 import Alert from '../models/Alert.js';
-import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase } from '../services/pollingService.js';
+import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase, pollSingleAlert } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
 import { resolveTheatre } from '../services/theatreResolver.js';
 import { sendAlarmArmedNotification, fetchTwilioContentTemplates } from '../services/notificationService.js';
@@ -257,6 +257,21 @@ router.patch('/:id/escalate', async (req, res) => {
     res.json({ message: `Escalated to ${alert.pollPhase}`, alert });
   } catch (error) {
     res.status(500).json({ error: 'Failed to escalate alert' });
+  }
+});
+
+/**
+ * POST /api/alerts/:id/scan-now - Manually trigger an immediate scan check
+ */
+router.post('/:id/scan-now', async (req, res) => {
+  try {
+    const alert = await Alert.findById(req.params.id);
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    await pollSingleAlert(alert._id.toString());
+    const updated = await Alert.findById(req.params.id);
+    res.json({ message: 'Scan complete', alert: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
