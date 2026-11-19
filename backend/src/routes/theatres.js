@@ -5,7 +5,7 @@ const router = express.Router();
 
 /**
  * GET /api/theatres/suggest?q=...
- * Returns matching theatres for autocomplete dropdown (with Gemini AI fallback)
+ * Returns matching theatres for autocomplete dropdown (with fast Gemini AI fallback)
  */
 router.get('/suggest', async (req, res) => {
   try {
@@ -16,9 +16,12 @@ router.get('/suggest', async (req, res) => {
     const clean = q.trim();
     let suggestions = getLiveSuggestions(clean);
 
-    // If no instant local match and query is >= 3 chars, resolve via Gemini AI
+    // If no instant local match and query is >= 3 chars, resolve via Gemini AI (with 4s timeout)
     if (suggestions.length === 0 && clean.length >= 3) {
-      const aiMatch = await resolveTheatre(clean, city || 'hyderabad', date || '20261118');
+      const resolvePromise = resolveTheatre(clean, city || 'hyderabad', date || '20261118');
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 4000));
+      const aiMatch = await Promise.race([resolvePromise, timeoutPromise]);
+
       if (aiMatch && aiMatch.theatreName) {
         suggestions = [{
           theatreName: aiMatch.theatreName,

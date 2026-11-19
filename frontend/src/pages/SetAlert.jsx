@@ -8,11 +8,14 @@ import api from '../api/client';
 
 const POPULAR_CINEMAS = [
   { name: 'AAA Cinemas (Ameerpet)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS' },
-  { name: 'ALLU Cinemas (Kokapet)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO' },
+  { name: 'PVR: Inorbit Mall (Cyberabad)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/pvr-inorbit-cyberabad/PVIC' },
   { name: 'Prasads Multiplex (Necklace Road)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/PRHN' },
   { name: 'AMB Cinemas (Gachibowli)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/amb-cinemas-gachibowli/AMBG' },
+  { name: 'INOX: GVK One (Banjara Hills)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/inox-gvk-one-mall-banjara-hills-hyderabad/IGVK' },
+  { name: 'ALLU Cinemas (Kokapet)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO' },
   { name: 'PVR: Nexus Mall (Kukatpally)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/pvr-nexus-mall-kukatpally-hyderabad/PVNK' },
   { name: 'Sudarshan 35MM (RTC X Roads)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2485' },
+  { name: 'AVD Cinemas (Mahbubnagar)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/avd-cinemas-mahbubnagar/AVDM' },
 ];
 
 const formatCinemaName = (raw) => {
@@ -70,20 +73,26 @@ function SetAlert() {
   };
 
   const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     const val = (mode === 'url' ? form.bmsUrl : form.theatreName || '').trim();
     if (val.length < 2 || val.startsWith('http')) {
       setSuggestions([]);
+      setSearching(false);
       return;
     }
 
+    setSearching(true);
     const timer = setTimeout(async () => {
       try {
         const { data } = await api.get(`/api/theatres/suggest?q=${encodeURIComponent(val)}`);
         setSuggestions(data.suggestions || []);
-      } catch {}
-    }, 200);
+      } catch {
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [form.bmsUrl, form.theatreName, mode]);
@@ -381,12 +390,25 @@ function SetAlert() {
                 Paste a BookMyShow URL or simply type your cinema name.
               </p>
 
+              {/* Live Search Loading Indicator */}
+              {searching && suggestions.length === 0 && (
+                <div className="bg-paper border border-ink/40 rounded-[10px] px-3 py-2 mt-2 flex items-center gap-2 font-mono text-[11px] text-ink/70">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-ink" />
+                  <span>Scanning BookMyShow cinema directory...</span>
+                </div>
+              )}
+
               {/* Live AI / Database Suggestions */}
               {suggestions.length > 0 && (
                 <div className="bg-paper border-2 border-ink rounded-[14px] p-2 mt-2 shadow-hard-xs space-y-1">
-                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-ink" />
-                    <span>AI Recognized Local Theatres (Tap to Lock):</span>
+                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-ink" />
+                      <span>Recognized Theatres (Tap to Lock):</span>
+                    </span>
+                    <span className="text-[9px] bg-acid px-1.5 py-0.5 rounded border border-ink font-bold">
+                      {suggestions.length} MATCH{suggestions.length > 1 ? 'ES' : ''}
+                    </span>
                   </div>
                   {suggestions.map((s, i) => (
                     <button
@@ -395,8 +417,8 @@ function SetAlert() {
                       onClick={() => selectSuggestion(s)}
                       className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
                     >
-                      <span>{s.theatreName}</span>
-                      <span className="font-mono text-[10px] uppercase text-ink/60 bg-paper/60 px-2 py-0.5 rounded border border-ink/20">
+                      <span className="truncate pr-2">{s.theatreName}</span>
+                      <span className="font-mono text-[10px] uppercase text-ink/70 bg-paper/80 px-2 py-0.5 rounded border border-ink/20 shrink-0">
                         {s.locality || s.city}
                       </span>
                     </button>
@@ -527,12 +549,25 @@ function SetAlert() {
                 className="w-full px-4 py-3 bg-paper border-2 border-ink rounded-[12px] font-space text-sm font-bold text-ink placeholder:text-ink/40 focus:outline-none focus:bg-acid/20"
               />
 
+              {/* Live Search Loading Indicator */}
+              {searching && suggestions.length === 0 && (
+                <div className="bg-paper border border-ink/40 rounded-[10px] px-3 py-2 mt-2 flex items-center gap-2 font-mono text-[11px] text-ink/70">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-ink" />
+                  <span>Scanning BookMyShow cinema directory...</span>
+                </div>
+              )}
+
               {/* Live AI / Database Suggestions */}
               {suggestions.length > 0 && (
                 <div className="bg-paper border-2 border-ink rounded-[14px] p-2 mt-2 shadow-hard-xs space-y-1">
-                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-ink" />
-                    <span>AI Recognized Local Theatres (Tap to Lock):</span>
+                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-ink" />
+                      <span>Recognized Theatres (Tap to Lock):</span>
+                    </span>
+                    <span className="text-[9px] bg-acid px-1.5 py-0.5 rounded border border-ink font-bold">
+                      {suggestions.length} MATCH{suggestions.length > 1 ? 'ES' : ''}
+                    </span>
                   </div>
                   {suggestions.map((s, i) => (
                     <button
@@ -541,8 +576,8 @@ function SetAlert() {
                       onClick={() => selectSuggestion(s)}
                       className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
                     >
-                      <span>{s.theatreName}</span>
-                      <span className="font-mono text-[10px] uppercase text-ink/60 bg-paper/60 px-2 py-0.5 rounded border border-ink/20">
+                      <span className="truncate pr-2">{s.theatreName}</span>
+                      <span className="font-mono text-[10px] uppercase text-ink/70 bg-paper/80 px-2 py-0.5 rounded border border-ink/20 shrink-0">
                         {s.locality || s.city}
                       </span>
                     </button>
