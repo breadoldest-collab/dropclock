@@ -74,6 +74,7 @@ function SetAlert() {
 
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [theatreLocked, setTheatreLocked] = useState(false);
 
   useEffect(() => {
     const val = (mode === 'url' ? form.bmsUrl : form.theatreName || '').trim();
@@ -86,7 +87,7 @@ function SetAlert() {
     setSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const { data } = await api.get(`/api/theatres/suggest?q=${encodeURIComponent(val)}`);
+        const { data } = await api.get(`/api/theatres/suggest?q=${encodeURIComponent(val)}&limit=25`);
         setSuggestions(data.suggestions || []);
       } catch {
       } finally {
@@ -104,6 +105,7 @@ function SetAlert() {
       city: s.city || prev.city,
       bmsUrl: s.bmsUrl || '',
     }));
+    setTheatreLocked(true);
     setSuggestions([]);
   };
 
@@ -163,6 +165,7 @@ function SetAlert() {
           targetDate: formattedDate,
           isoDate: iso,
         }));
+        setTheatreLocked(true);
       }
     } else {
       // User typed cinema name like "aaa cinemas" or "Prasads"
@@ -172,6 +175,7 @@ function SetAlert() {
         bmsUrl: val,
         theatreName: formatted,
       }));
+      setTheatreLocked(false);
     }
   };
 
@@ -182,6 +186,7 @@ function SetAlert() {
       theatreName: cinema.name,
       city: cinema.city,
     }));
+    setTheatreLocked(true);
   };
 
   const handleSubmit = async () => {
@@ -401,37 +406,42 @@ function SetAlert() {
               {/* Live AI / Database Suggestions */}
               {suggestions.length > 0 && (
                 <div className="bg-paper border-2 border-ink rounded-[14px] p-2 mt-2 shadow-hard-xs space-y-1">
-                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center justify-between">
+                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1.5 flex items-center justify-between border-b border-ink/10 mb-1">
                     <span className="flex items-center gap-1">
                       <Sparkles className="w-3 h-3 text-ink" />
                       <span>Recognized Theatres (Tap to Lock):</span>
                     </span>
                     <span className="text-[9px] bg-acid px-1.5 py-0.5 rounded border border-ink font-bold">
-                      {suggestions.length} MATCH{suggestions.length > 1 ? 'ES' : ''}
+                      {suggestions.length} MATCH{suggestions.length > 1 ? 'ES' : ''} {suggestions.length > 4 ? '• SCROLL FOR MORE' : ''}
                     </span>
                   </div>
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => selectSuggestion(s)}
-                      className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
-                    >
-                      <span className="truncate pr-2">{s.theatreName}</span>
-                      <span className="font-mono text-[10px] uppercase text-ink/70 bg-paper/80 px-2 py-0.5 rounded border border-ink/20 shrink-0">
-                        {s.locality || s.city}
-                      </span>
-                    </button>
-                  ))}
+                  <div className="max-h-64 overflow-y-auto space-y-1 pr-1 overscroll-contain">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => selectSuggestion(s)}
+                        className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
+                      >
+                        <span className="truncate pr-2">{s.theatreName}</span>
+                        <span className="font-mono text-[10px] uppercase text-ink/70 bg-paper/80 px-2 py-0.5 rounded border border-ink/20 shrink-0">
+                          {s.locality || s.city}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Detected Card */}
-            {form.theatreName && (
+            {theatreLocked && form.theatreName && (
               <div className="bg-acid/30 border-2 border-ink rounded-[14px] p-4 font-mono text-xs space-y-1 shadow-hard-xs">
-                <div className="text-[10px] text-ink/70 font-bold uppercase">TARGET RADAR LOCKED:</div>
-                <div className="font-bold text-ink">{form.theatreName}</div>
+                <div className="text-[10px] text-ink/70 font-bold uppercase flex items-center justify-between">
+                  <span>TARGET RADAR LOCKED:</span>
+                  <span className="text-[9px] bg-ink text-acid px-1.5 py-0.5 rounded font-mono font-bold">LOCKED</span>
+                </div>
+                <div className="font-bold text-ink text-sm">{form.theatreName}</div>
                 <div className="text-ink/80">Date: {form.targetDate} • City: {form.city.toUpperCase()}</div>
               </div>
             )}
@@ -560,28 +570,30 @@ function SetAlert() {
               {/* Live AI / Database Suggestions */}
               {suggestions.length > 0 && (
                 <div className="bg-paper border-2 border-ink rounded-[14px] p-2 mt-2 shadow-hard-xs space-y-1">
-                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1 flex items-center justify-between">
+                  <div className="font-mono text-[10px] text-ink/70 font-bold uppercase px-2 py-1.5 flex items-center justify-between border-b border-ink/10 mb-1">
                     <span className="flex items-center gap-1">
                       <Sparkles className="w-3 h-3 text-ink" />
                       <span>Recognized Theatres (Tap to Lock):</span>
                     </span>
                     <span className="text-[9px] bg-acid px-1.5 py-0.5 rounded border border-ink font-bold">
-                      {suggestions.length} MATCH{suggestions.length > 1 ? 'ES' : ''}
+                      {suggestions.length} MATCH{suggestions.length > 1 ? 'ES' : ''} {suggestions.length > 4 ? '• SCROLL FOR MORE' : ''}
                     </span>
                   </div>
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => selectSuggestion(s)}
-                      className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
-                    >
-                      <span className="truncate pr-2">{s.theatreName}</span>
-                      <span className="font-mono text-[10px] uppercase text-ink/70 bg-paper/80 px-2 py-0.5 rounded border border-ink/20 shrink-0">
-                        {s.locality || s.city}
-                      </span>
-                    </button>
-                  ))}
+                  <div className="max-h-64 overflow-y-auto space-y-1 pr-1 overscroll-contain">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => selectSuggestion(s)}
+                        className="w-full text-left px-3 py-2 bg-paper hover:bg-acid border border-transparent hover:border-ink rounded-[10px] font-space text-xs font-bold text-ink transition-all flex items-center justify-between shadow-none hover:shadow-hard-xs"
+                      >
+                        <span className="truncate pr-2">{s.theatreName}</span>
+                        <span className="font-mono text-[10px] uppercase text-ink/70 bg-paper/80 px-2 py-0.5 rounded border border-ink/20 shrink-0">
+                          {s.locality || s.city}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

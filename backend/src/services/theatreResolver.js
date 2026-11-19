@@ -764,7 +764,7 @@ export async function resolveTheatre(query, city = 'hyderabad') {
  * Live Suggestions Endpoint
  * Returns top matching verified theatres with their real BookMyShow URLs
  */
-export function getLiveSuggestions(query, limit = 6) {
+export function getLiveSuggestions(query, limit = 25) {
   if (!query || query.length < 2) return [];
   const clean = query.toLowerCase().trim();
 

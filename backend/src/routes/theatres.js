@@ -9,12 +9,13 @@ const router = express.Router();
  */
 router.get('/suggest', async (req, res) => {
   try {
-    const { q, city, date } = req.query;
+    const { q, city, date, limit } = req.query;
     if (!q || q.trim().length < 2) {
       return res.json({ suggestions: [] });
     }
     const clean = q.trim();
-    let suggestions = getLiveSuggestions(clean);
+    const cleanLimit = Math.min(parseInt(limit, 10) || 25, 50);
+    let suggestions = getLiveSuggestions(clean, cleanLimit);
 
     // If no instant local match and query is >= 3 chars, resolve via Gemini AI (with 4s timeout)
     if (suggestions.length === 0 && clean.length >= 3) {
