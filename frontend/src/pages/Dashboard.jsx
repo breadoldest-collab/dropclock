@@ -47,33 +47,80 @@ function Dashboard() {
     return raw.replace(/\b[a-z]/g, l => l.toUpperCase());
   };
 
+  const normalizeBmsVenueUrl = (url, theatreName = '', city = 'hyderabad') => {
+    const raw = `${theatreName || ''} ${url || ''}`.toLowerCase();
+
+    // 1. Direct verified mappings with exact working BookMyShow routes
+    if (raw.includes('avd')) {
+      return 'https://in.bookmyshow.com/cinemas/mahbubnagar/avd-cinemas-mahbubnagar/buytickets/AVDM/';
+    }
+    if (raw.includes('aaa')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/buytickets/ACAS/';
+    }
+    if (raw.includes('allu')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/buytickets/ALCO/';
+    }
+    if (raw.includes('prasad')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/buytickets/PRHN/';
+    }
+    if (raw.includes('amb')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/amb-cinemas-gachibowli/buytickets/AMBG/';
+    }
+    if (raw.includes('inorbit')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/pvr-inorbit-cyberabad/buytickets/PVIC/';
+    }
+    if (raw.includes('nexus') || (raw.includes('pvr') && raw.includes('kukatpally'))) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/pvr-nexus-mall-kukatpally-hyderabad/buytickets/PVNK/';
+    }
+    if (raw.includes('gvk')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/inox-gvk-one-mall-banjara-hills-hyderabad/buytickets/IGVK/';
+    }
+    if (raw.includes('satyam')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/asian-satyam-mall-ameerpet-hyderabad/buytickets/ASMA/';
+    }
+    if (raw.includes('sudarshan')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/buytickets/BMSH/2485';
+    }
+    if (raw.includes('devi')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/devi-70mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/buytickets/BMSH/2483';
+    }
+    if (raw.includes('sandhya')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/sandhya-70mm-rtc-x-roads-hyderabad/buytickets/SAND/';
+    }
+    if (raw.includes('bramaramba') || raw.includes('bhramaramba')) {
+      return 'https://in.bookmyshow.com/cinemas/hyderabad/bhramaramba-70mm-kukatpally-hyderabad/buytickets/BHRA/';
+    }
+
+    // 2. Normalize any valid BookMyShow cinema URL to ensure city and /buytickets/ are present
+    if (url && url.startsWith('https://in.bookmyshow.com/cinemas/')) {
+      let path = url.replace('https://in.bookmyshow.com/cinemas/', '').replace(/^\/+|\/+$/g, '');
+      const cleanCity = (city || 'hyderabad').toLowerCase().trim();
+      const knownCities = ['hyderabad', 'mahbubnagar', 'bengaluru', 'chennai', 'vijayawada', 'visakhapatnam', 'mumbai', 'delhi'];
+      const hasCity = knownCities.some(c => path.startsWith(c + '/'));
+      if (!hasCity) {
+        path = `${cleanCity}/${path}`;
+      }
+      if (!path.includes('/buytickets/')) {
+        const parts = path.split('/');
+        if (parts.length === 3) {
+          path = `${parts[0]}/${parts[1]}/buytickets/${parts[2]}/`;
+        } else if (parts.length === 4 && parts[2] === 'BMSH') {
+          path = `${parts[0]}/${parts[1]}/buytickets/BMSH/${parts[3]}`;
+        }
+      }
+      return `https://in.bookmyshow.com/cinemas/${path}`;
+    }
+
+    if (url && url.startsWith('http')) return url;
+    return `https://in.bookmyshow.com/explore/cinemas-${(city || 'hyderabad').toLowerCase()}`;
+  };
+
   const getBmsUrl = (alert) => {
-    // If the alert already triggered and has a verified booking deep link, use it
-    if (alert.bookingUrl && alert.bookingUrl.startsWith('http') && !/\/explore\/cinemas-|\/buytickets\//i.test(alert.bookingUrl)) {
+    // If the alert already triggered with a verified drop deep link, use it
+    if (alert.bookingUrl && alert.bookingUrl.startsWith('http') && !alert.bookingUrl.includes('undefined')) {
       return alert.bookingUrl;
     }
-
-    const candidate = alert.bmsUrl || '';
-    const isBrokenLegacy = /\/(AAAC|AMBC|PVND|SUDX)\/|\/explore\/cinemas-|\/buytickets\/|\/\d{6}$/i.test(candidate);
-    if (candidate && candidate.startsWith('http') && !isBrokenLegacy) {
-      return candidate;
-    }
-
-    const raw = `${alert.theatreName || ''} ${alert.bmsUrl || ''}`.toLowerCase();
-    if (raw.includes('avd')) return 'https://in.bookmyshow.com/cinemas/avd-cinemas-mahbubnagar/AVDM';
-    if (raw.includes('aaa')) return 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS';
-    if (raw.includes('allu')) return 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO';
-    if (raw.includes('prasad')) return 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/PRHN';
-    if (raw.includes('amb')) return 'https://in.bookmyshow.com/cinemas/amb-cinemas-gachibowli/AMBG';
-    if (raw.includes('pvr') && raw.includes('inorbit')) return 'https://in.bookmyshow.com/cinemas/pvr-inorbit-cyberabad/PVIC';
-    if (raw.includes('pvr')) return 'https://in.bookmyshow.com/cinemas/pvr-nexus-mall-kukatpally-hyderabad/PVNK';
-    if (raw.includes('gvk')) return 'https://in.bookmyshow.com/cinemas/inox-gvk-one-mall-banjara-hills-hyderabad/IGVK';
-    if (raw.includes('satyam')) return 'https://in.bookmyshow.com/cinemas/asian-satyam-mall-ameerpet-hyderabad/ASMA';
-    if (raw.includes('sudarshan')) return 'https://in.bookmyshow.com/cinemas/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2485';
-    if (raw.includes('devi')) return 'https://in.bookmyshow.com/cinemas/devi-70mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2483';
-    if (raw.includes('sandhya')) return 'https://in.bookmyshow.com/cinemas/sandhya-70mm-rtc-x-roads-hyderabad/SAND';
-    if (raw.includes('bramaramba') || raw.includes('bhramaramba')) return 'https://in.bookmyshow.com/cinemas/bhramaramba-70mm-kukatpally-hyderabad/BHRA';
-    return `https://in.bookmyshow.com/explore/cinemas-${alert.city || 'hyderabad'}`;
+    return normalizeBmsVenueUrl(alert.bmsUrl, alert.theatreName, alert.city);
   };
 
   const cancelAlert = async (id) => {

@@ -9,7 +9,7 @@ import { Router } from 'express';
 import Alert from '../models/Alert.js';
 import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase, pollSingleAlert } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
-import { resolveTheatre } from '../services/theatreResolver.js';
+import { resolveTheatre, normalizeVenueUrl } from '../services/theatreResolver.js';
 import { sendAlarmArmedNotification, fetchTwilioContentTemplates } from '../services/notificationService.js';
 
 const router = Router();
@@ -48,16 +48,19 @@ function formatTheatreName(raw) {
  */
 function resolveBmsUrl(theatreName, city = 'hyderabad') {
   const clean = (theatreName || '').toLowerCase();
-  if (clean.includes('aaa')) return 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS';
-  if (clean.includes('allu')) return 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/ALCO';
-  if (clean.includes('prasad')) return 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/PRHN';
-  if (clean.includes('amb')) return 'https://in.bookmyshow.com/cinemas/amb-cinemas-gachibowli/AMBG';
-  if (clean.includes('pvr') && clean.includes('nexus')) return 'https://in.bookmyshow.com/cinemas/pvr-nexus-mall-kukatpally-hyderabad/PVNK';
-  if (clean.includes('sudarshan')) return 'https://in.bookmyshow.com/cinemas/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2485';
-  if (clean.includes('devi')) return 'https://in.bookmyshow.com/cinemas/devi-70mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/BMSH/2483';
-  if (clean.includes('sandhya')) return 'https://in.bookmyshow.com/cinemas/sandhya-70mm-rtc-x-roads-hyderabad/SAND';
-  if (clean.includes('bramaramba') || clean.includes('bhramaramba')) return 'https://in.bookmyshow.com/cinemas/bhramaramba-70mm-kukatpally-hyderabad/BHRA';
-  if (clean.includes('avd')) return 'https://in.bookmyshow.com/cinemas/avd-cinemas-mahbubnagar/AVDM';
+  if (clean.includes('avd')) return 'https://in.bookmyshow.com/cinemas/mahbubnagar/avd-cinemas-mahbubnagar/buytickets/AVDM/';
+  if (clean.includes('aaa')) return 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/buytickets/ACAS/';
+  if (clean.includes('allu')) return 'https://in.bookmyshow.com/cinemas/hyderabad/allu-cinemas-kokapet/buytickets/ALCO/';
+  if (clean.includes('prasad')) return 'https://in.bookmyshow.com/cinemas/hyderabad/prasads-multiplex-hyderabad/buytickets/PRHN/';
+  if (clean.includes('amb')) return 'https://in.bookmyshow.com/cinemas/hyderabad/amb-cinemas-gachibowli/buytickets/AMBG/';
+  if (clean.includes('pvr') && (clean.includes('nexus') || clean.includes('pvnd') || clean.includes('pvnk'))) return 'https://in.bookmyshow.com/cinemas/hyderabad/pvr-nexus-mall-kukatpally-hyderabad/buytickets/PVNK/';
+  if (clean.includes('inorbit')) return 'https://in.bookmyshow.com/cinemas/hyderabad/pvr-inorbit-cyberabad/buytickets/PVIC/';
+  if (clean.includes('gvk')) return 'https://in.bookmyshow.com/cinemas/hyderabad/inox-gvk-one-mall-banjara-hills-hyderabad/buytickets/IGVK/';
+  if (clean.includes('satyam')) return 'https://in.bookmyshow.com/cinemas/hyderabad/asian-satyam-mall-ameerpet-hyderabad/buytickets/ASMA/';
+  if (clean.includes('sudarshan')) return 'https://in.bookmyshow.com/cinemas/hyderabad/sudarshan-35mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/buytickets/BMSH/2485';
+  if (clean.includes('devi')) return 'https://in.bookmyshow.com/cinemas/hyderabad/devi-70mm-4k-laser-dolby-atmos-rtc-x-roads-hyderabad/buytickets/BMSH/2483';
+  if (clean.includes('sandhya')) return 'https://in.bookmyshow.com/cinemas/hyderabad/sandhya-70mm-rtc-x-roads-hyderabad/buytickets/SAND/';
+  if (clean.includes('bramaramba') || clean.includes('bhramaramba')) return 'https://in.bookmyshow.com/cinemas/hyderabad/bhramaramba-70mm-kukatpally-hyderabad/buytickets/BHRA/';
   return `https://in.bookmyshow.com/explore/cinemas-${(city || 'hyderabad').toLowerCase()}`;
 }
 

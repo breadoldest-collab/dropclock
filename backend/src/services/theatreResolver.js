@@ -269,12 +269,12 @@ const KNOWN_THEATRES = [
   },
   // 30. AVD Cinemas
   {
-    aliases: ['avd', 'avd cinemas', 'avdm', 'avd mahbubnagar'],
+    aliases: ['avd', 'avd cinemas', 'avdm', 'avd mahbubnagar', 'asian vijay deverakonda'],
     name: 'AVD Cinemas (Mahbubnagar)',
-    city: 'hyderabad',
+    city: 'mahbubnagar',
     locality: 'Mahbubnagar',
     venueCode: 'AVDM',
-    url: 'https://in.bookmyshow.com/cinemas/avd-cinemas-mahbubnagar/AVDM',
+    url: 'https://in.bookmyshow.com/cinemas/mahbubnagar/avd-cinemas-mahbubnagar/buytickets/AVDM/',
   },
   // 31. Asian Cineplanet Kompally
   {
@@ -466,6 +466,41 @@ const KNOWN_THEATRES = [
     url: 'https://in.bookmyshow.com/cinemas/vijayawada/inox-trendset-mall-vijayawada/ITMV',
   },
 ];
+
+/**
+ * Normalizes any BookMyShow venue URL into canonical format with city slug:
+ * https://in.bookmyshow.com/cinemas/{city}/{slug}/buytickets/{code}/
+ * This eliminates the 404 Cat error on BookMyShow.
+ */
+export function normalizeVenueUrl(url, city = 'hyderabad') {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.startsWith('https://in.bookmyshow.com/cinemas/')) return url;
+
+  let path = url.replace('https://in.bookmyshow.com/cinemas/', '').replace(/^\/+|\/+$/g, '');
+  const cleanCity = (city || 'hyderabad').toLowerCase().trim();
+
+  const knownCities = ['hyderabad', 'mahbubnagar', 'bengaluru', 'chennai', 'vijayawada', 'visakhapatnam', 'mumbai', 'delhi', 'kolkata', 'pune'];
+  const hasCity = knownCities.some(c => path.startsWith(c + '/'));
+  if (!hasCity) {
+    path = `${cleanCity}/${path}`;
+  }
+
+  if (!path.includes('/buytickets/')) {
+    const parts = path.split('/');
+    if (parts.length === 3) {
+      path = `${parts[0]}/${parts[1]}/buytickets/${parts[2]}/`;
+    } else if (parts.length === 4 && parts[2] === 'BMSH') {
+      path = `${parts[0]}/${parts[1]}/buytickets/BMSH/${parts[3]}`;
+    }
+  }
+
+  return `https://in.bookmyshow.com/cinemas/${path}`;
+}
+
+// Canonicalize all verified theatre URLs at startup
+for (const t of KNOWN_THEATRES) {
+  t.url = normalizeVenueUrl(t.url, t.city);
+}
 
 // Permanent in-memory cache for resolved queries
 const resolvedCache = new Map();
