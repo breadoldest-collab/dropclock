@@ -2,6 +2,10 @@
 node_modules/
 .pnpm-store/
 .git_repo/
+Personal/
+.vite/
+frontend/.vite/
+
 
 # Environment variables & secrets (CRITICAL)
 .env

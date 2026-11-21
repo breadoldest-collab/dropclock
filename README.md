@@ -1,6 +1,17 @@
-# Dropclock
+# DropClock — Real-Time Ticket Drop Radar & Schedule Differential Monitor
 
-High-throughput, real-time ticket availability monitor and schedule differential detector for multiplex ticketing platforms. Designed to monitor silently opened auditoriums, newly scheduled showtimes, and high-demand cinematic booking drops with sub-minute alert latency.
+[![Live Application](https://img.shields.io/badge/Live_App-wholedropreminder.vercel.app-e11d48?style=for-the-badge&logo=vercel)](https://wholedropreminder.vercel.app)
+[![React 18](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?style=for-the-badge&logo=express)](https://expressjs.com/)
+[![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/atlas)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+**DropClock** is a high-throughput, real-time ticket availability monitor and schedule differential detector for multiplex ticketing platforms (BookMyShow). Engineered to monitor silently opened auditoriums, newly scheduled showtimes, and high-demand cinematic booking drops with sub-minute alert latency and direct deep-links to seat layouts.
+
+- **Production Deployment:** [https://wholedropreminder.vercel.app](https://wholedropreminder.vercel.app)
+- **Repository:** [https://github.com/breadoldest-collab/dropclock.git](https://github.com/breadoldest-collab/dropclock.git)
 
 ---
 
