@@ -1,6 +1,20 @@
 import mongoose from 'mongoose';
 
 const alertSchema = new mongoose.Schema({
+  // Optional Owner (when logged in with DropClock username/password for cross-device sync)
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true,
+  },
+  username: {
+    type: String,
+    default: null,
+    trim: true,
+    lowercase: true,
+  },
+
   // Direct BMS URL (e.g. /cinemas/HYD/prasads-multiplex-hyderabad/buytickets/PRHN/20261217)
   bmsUrl: {
     type: String,
@@ -123,6 +137,7 @@ const alertSchema = new mongoose.Schema({
 alertSchema.index({ status: 1, pollPhase: 1 });
 alertSchema.index({ eventCode: 1, city: 1 });
 alertSchema.index({ telegramChatId: 1 });
+alertSchema.index({ userId: 1, createdAt: -1 });
 
 const Alert = mongoose.model('Alert', alertSchema);
 

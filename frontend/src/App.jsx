@@ -2,11 +2,14 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import SetAlert from './pages/SetAlert';
+import Auth from './pages/Auth';
 import Navbar from './components/Navbar';
+import { AuthProvider } from './context/AuthContext';
 
 function App() {
   return (
-    <BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
       <div className="min-h-screen bg-[#FDFBF7] text-[#09090B] font-space relative selection:bg-acid selection:text-ink">
         {/* Global SVG Noise Overlay */}
         <div className="noise-overlay" />
@@ -73,10 +76,13 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/new-alert" element={<SetAlert />} />
+            <Route path="/login" element={<Auth initialMode="login" />} />
+            <Route path="/register" element={<Auth initialMode="register" />} />
           </Routes>
         </main>
       </div>
     </BrowserRouter>
+    </AuthProvider>
   );
 }
 

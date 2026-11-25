@@ -18,6 +18,7 @@ import { startPolling } from './services/pollingService.js';
 import { registerBotCommands } from './routes/telegramBot.js';
 import alertRoutes from './routes/alerts.js';
 import theatresRouter from './routes/theatres.js';
+import authRoutes from './routes/auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ app.use(cors());
 app.use(express.json());
 
 // ─── Routes ─────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/theatres', theatresRouter);
 

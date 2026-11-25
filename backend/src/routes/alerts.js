@@ -6,13 +6,23 @@
  */
 
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import Alert from '../models/Alert.js';
+import User from '../models/User.js';
 import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase, pollSingleAlert } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
 import { resolveTheatre, normalizeVenueUrl } from '../services/theatreResolver.js';
 import { sendAlarmArmedNotification, fetchTwilioContentTemplates } from '../services/notificationService.js';
+import { optionalAuth, requireAuth } from '../utils/auth.js';
 
 const router = Router();
+router.use(optionalAuth);
+
+function canAccessAlert(alert, req) {
+  if (!alert) return false;
+  if (!alert.userId) return true; // Guest alarm
+  return Boolean(req.user && alert.userId.toString() === req.user.userId);
+}
 
 /**
  * Helper to parse a BMS buytickets URL
@@ -142,6 +152,8 @@ router.post('/', async (req, res) => {
     }
 
     const alert = new Alert({
+      userId: req.user?.userId || null,
+      username: req.user?.username || null,
       bmsUrl: finalBmsUrl,
       movieName: finalMovieName,
       eventCode: eventCode || 'UNKNOWN',
@@ -161,6 +173,18 @@ router.post('/', async (req, res) => {
 
     await alert.save();
     addToPolling(alert);
+
+    // Auto-save user's default notification preferences on first alert if empty
+    if (req.user?.userId) {
+      User.findById(req.user.userId).then(user => {
+        if (!user) return;
+        let changed = false;
+        if (!user.defaultEmail && alert.email) { user.defaultEmail = alert.email; changed = true; }
+        if (!user.defaultPhone && alert.phoneNumber) { user.defaultPhone = alert.phoneNumber; changed = true; }
+        if (alert.city && (!user.defaultCity || user.defaultCity === 'hyderabad')) { user.defaultCity = alert.city; changed = true; }
+        if (changed) user.save().catch(() => {});
+      }).catch(() => {});
+    }
 
     // Send immediate confirmation via Brevo Email / WhatsApp / SMS
     sendAlarmArmedNotification(alert).catch(err => {
@@ -212,19 +236,109 @@ router.get('/twilio-templates', async (req, res) => {
 });
 
 /**
- * GET /api/alerts - Get all alerts (excludes cancelled/expired by default)
+ * POST /api/alerts/claim - Link guest alerts created before login into the user's account
+ */
+router.post('/claim', requireAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ claimed: 0 });
+    }
+    const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+      return res.json({ claimed: 0 });
+    }
+
+    const result = await Alert.updateMany(
+      { _id: { $in: validIds }, userId: null },
+      { $set: { userId: req.user.userId, username: req.user.username } }
+    );
+
+    return res.json({ claimed: result.modifiedCount || 0 });
+  } catch (error) {
+    console.error('[API] Claim error:', error);
+    return res.status(500).json({ error: 'Failed to claim guest alerts' });
+  }
+});
+
+/**
+ * GET /api/alerts - Get alerts scoped to logged-in user (or guest browser IDs)
  */
 router.get('/', async (req, res) => {
   try {
-    const { chatId, status } = req.query;
+    const { chatId, status, ids } = req.query;
     const filter = status ? { status } : { status: { $ne: 'expired' } };
 
-    if (chatId) filter.telegramChatId = chatId;
+    if (chatId) {
+      filter.telegramChatId = chatId;
+    } else if (req.user?.userId) {
+      filter.userId = req.user.userId;
+    } else if (ids) {
+      const validIds = String(ids)
+        .split(',')
+        .map(s => s.trim())
+        .filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (validIds.length === 0) {
+        return res.json({ alerts: [], count: 0, authenticated: false });
+      }
+      filter._id = { $in: validIds };
+      filter.userId = null;
+    } else {
+      return res.json({ alerts: [], count: 0, authenticated: false });
+    }
 
     const alerts = await Alert.find(filter).sort({ createdAt: -1 });
-    res.json({ alerts, count: alerts.length });
+    res.json({ alerts, count: alerts.length, authenticated: Boolean(req.user) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch alerts' });
+  }
+});
+
+/**
+ * GET /api/alerts/stats/overview - Get polling stats scoped to user or global radar
+ */
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const { ids } = req.query;
+    let scopeFilter = {};
+    if (req.user?.userId) {
+      scopeFilter = { userId: new mongoose.Types.ObjectId(req.user.userId) };
+    } else if (ids) {
+      const validIds = String(ids)
+        .split(',')
+        .map(s => s.trim())
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+        .map(id => new mongoose.Types.ObjectId(id));
+      scopeFilter = validIds.length > 0 ? { _id: { $in: validIds }, userId: null } : { _id: null };
+    } else {
+      scopeFilter = { _id: null };
+    }
+
+    const [totalWatching, totalTriggered, totalPaused, globalWatching] = await Promise.all([
+      Alert.countDocuments({ ...scopeFilter, status: 'watching' }),
+      Alert.countDocuments({ ...scopeFilter, status: 'triggered' }),
+      Alert.countDocuments({ ...scopeFilter, status: 'paused' }),
+      Alert.countDocuments({ status: 'watching' }),
+    ]);
+    const pollingStats = getPollingStats();
+
+    const topMovies = await Alert.aggregate([
+      { $match: { status: 'watching' } },
+      { $group: { _id: '$movieName', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]);
+
+    res.json({
+      watching: totalWatching,
+      triggered: totalTriggered,
+      paused: totalPaused,
+      activePollers: req.user ? totalWatching : (ids ? totalWatching : pollingStats.activeTimers),
+      globalActiveWatches: globalWatching,
+      topMovies,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 
@@ -235,6 +349,7 @@ router.get('/:id', async (req, res) => {
   try {
     const alert = await Alert.findById(req.params.id);
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    if (!canAccessAlert(alert, req)) return res.status(403).json({ error: 'Unauthorized' });
     res.json({ alert });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch alert' });
@@ -250,16 +365,65 @@ router.patch('/:id/escalate', async (req, res) => {
     const alert = await Alert.findById(req.params.id);
     
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    if (!canAccessAlert(alert, req)) return res.status(403).json({ error: 'Unauthorized' });
     if (alert.status !== 'watching') {
       return res.status(400).json({ error: 'Alert is not active' });
     }
 
     alert.pollPhase = phase || 'hot';
     await alert.save();
+    addToPolling(alert);
 
     res.json({ message: `Escalated to ${alert.pollPhase}`, alert });
   } catch (error) {
     res.status(500).json({ error: 'Failed to escalate alert' });
+  }
+});
+
+/**
+ * PATCH /api/alerts/:id/toggle-pause - Pause or resume a watcher without deleting it
+ */
+router.patch('/:id/toggle-pause', async (req, res) => {
+  try {
+    const alert = await Alert.findById(req.params.id);
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    if (!canAccessAlert(alert, req)) return res.status(403).json({ error: 'Unauthorized' });
+
+    if (alert.status === 'watching') {
+      alert.status = 'paused';
+      removeFromPolling(alert._id.toString());
+    } else if (alert.status === 'paused') {
+      alert.status = 'watching';
+      addToPolling(alert);
+    } else {
+      return res.status(400).json({ error: 'Only watching or paused alarms can be toggled.' });
+    }
+
+    await alert.save();
+    res.json({ message: `Alert ${alert.status}`, alert });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update alert status' });
+  }
+});
+
+/**
+ * POST /api/alerts/:id/rearm - Re-arm a triggered alarm to keep watching for additional screen drops
+ */
+router.post('/:id/rearm', async (req, res) => {
+  try {
+    const alert = await Alert.findById(req.params.id);
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    if (!canAccessAlert(alert, req)) return res.status(403).json({ error: 'Unauthorized' });
+
+    alert.status = 'watching';
+    alert.newShowsDetected = [];
+    alert.pollPhase = computeSmartPhase(alert.targetDate);
+    await alert.save();
+    addToPolling(alert);
+
+    res.json({ message: 'Alarm re-armed! Watching for the next wave of showtimes.', alert });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to re-arm alert' });
   }
 });
 
@@ -270,6 +434,7 @@ router.post('/:id/scan-now', async (req, res) => {
   try {
     const alert = await Alert.findById(req.params.id);
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    if (!canAccessAlert(alert, req)) return res.status(403).json({ error: 'Unauthorized' });
     await pollSingleAlert(alert._id.toString());
     const updated = await Alert.findById(req.params.id);
     res.json({ message: 'Scan complete', alert: updated });
@@ -283,9 +448,12 @@ router.post('/:id/scan-now', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
+    const existing = await Alert.findById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Alert not found' });
+    if (!canAccessAlert(existing, req)) return res.status(403).json({ error: 'Unauthorized' });
+
     removeFromPolling(req.params.id);
-    const alert = await Alert.findByIdAndDelete(req.params.id);
-    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+    await Alert.findByIdAndDelete(req.params.id);
 
     res.json({ message: 'Alert deleted permanently', id: req.params.id });
   } catch (error) {
@@ -342,34 +510,6 @@ router.post('/repair-all', async (req, res) => {
   } catch (error) {
     console.error('[Repair] Error:', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/stats - Get polling stats
- */
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const totalWatching = await Alert.countDocuments({ status: 'watching' });
-    const totalTriggered = await Alert.countDocuments({ status: 'triggered' });
-    const pollingStats = getPollingStats();
-
-    // Get top watched movies
-    const topMovies = await Alert.aggregate([
-      { $match: { status: 'watching' } },
-      { $group: { _id: '$movieName', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 },
-    ]);
-
-    res.json({
-      watching: totalWatching,
-      triggered: totalTriggered,
-      activePollers: pollingStats.activeTimers,
-      topMovies,
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 

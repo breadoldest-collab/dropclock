@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Bell, Film, MapPin, Building2, Hash, ArrowRight, 
-  Loader2, CheckCircle2, Phone, Mail, Link2, Calendar, Sparkles, PlusCircle, Zap, Search 
+  Loader2, CheckCircle2, Phone, Mail, Link2, Calendar, Sparkles, PlusCircle, Zap, Search, ShieldCheck 
 } from 'lucide-react';
 import api from '../api/client';
+import { useAuth, addGuestAlertId } from '../context/AuthContext';
 
 const POPULAR_CINEMAS = [
   { name: 'AAA Cinemas (Ameerpet)', city: 'hyderabad', url: 'https://in.bookmyshow.com/cinemas/hyderabad/aaa-cinemas-ameerpet/ACAS' },
@@ -49,6 +50,7 @@ const UPCOMING_DATES = getUpcomingDates();
 
 function SetAlert() {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const [mode, setMode] = useState('url'); // 'url' or 'manual'
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -59,13 +61,27 @@ function SetAlert() {
     movieName: '',
     targetDate: UPCOMING_DATES[0].displayDate,
     isoDate: UPCOMING_DATES[0].isoDate,
-    city: 'hyderabad',
+    city: user?.defaultCity || 'hyderabad',
     theatreName: '',
-    email: '',
-    phoneNumber: '',
-    notificationMethod: 'email',
+    email: user?.defaultEmail || '',
+    phoneNumber: user?.defaultPhone || '',
+    notificationMethod: user?.defaultNotificationMethod || 'email',
     watchType: 'new_shows',
   });
+
+  useEffect(() => {
+    if (user) {
+      setForm(prev => ({
+        ...prev,
+        email: prev.email || user.defaultEmail || '',
+        phoneNumber: prev.phoneNumber || user.defaultPhone || '',
+        city: prev.city === 'hyderabad' && user.defaultCity ? user.defaultCity : prev.city,
+        notificationMethod: prev.notificationMethod === 'email' && user.defaultNotificationMethod
+          ? user.defaultNotificationMethod
+          : prev.notificationMethod,
+      }));
+    }
+  }, [user]);
 
   const updateField = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -236,6 +252,9 @@ function SetAlert() {
         notificationMethod: form.notificationMethod,
       });
       const saved = data?.alert;
+      if (!isAuthenticated && saved?._id) {
+        addGuestAlertId(saved._id);
+      }
       setForm(prev => ({
         ...prev,
         theatreName: saved?.theatreName || cleanTheatre,
@@ -289,9 +308,28 @@ function SetAlert() {
             </div>
           </div>
 
-          <p className="font-space text-sm text-ink/80 mb-8">
+          <p className="font-space text-sm text-ink/80 mb-6">
             A confirmation has been dispatched. The instant BookMyShow adds a new showtime (e.g. Screen 6 PCX or midnight shows), you will receive an immediate alert with a direct booking deep-link.
           </p>
+
+          {!isAuthenticated && (
+            <div className="mb-6 p-4 bg-acid/30 border-2 border-ink rounded-[14px] text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-ink shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-space text-xs font-bold text-ink">Want to view this alarm on another device?</p>
+                  <p className="font-mono text-[11px] text-ink/75">Create a free username & password to sync this clock across your phone and laptop.</p>
+                </div>
+              </div>
+              <Link
+                to="/register"
+                state={{ from: '/dashboard' }}
+                className="shrink-0 bg-ink text-acid font-space text-xs font-bold uppercase px-4 py-2 rounded-[10px] border-2 border-ink text-center"
+              >
+                Save to Account
+              </Link>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
