@@ -9,7 +9,7 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import Alert from '../models/Alert.js';
 import User from '../models/User.js';
-import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase, pollSingleAlert } from '../services/pollingService.js';
+import { addToPolling, removeFromPolling, getPollingStats, computeSmartPhase, pollSingleAlert, runDuePolls } from '../services/pollingService.js';
 import { getCinemaShows } from '../services/bmsService.js';
 import { resolveTheatre, normalizeVenueUrl } from '../services/theatreResolver.js';
 import { sendAlarmArmedNotification, fetchTwilioContentTemplates } from '../services/notificationService.js';
@@ -341,6 +341,20 @@ router.get('/stats/overview', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
+
+/**
+ * GET|POST /api/alerts/cron-tick - Wake server & run any due polls (for external cron/keep-alive)
+ */
+const handleCronTick = async (req, res) => {
+  try {
+    const summary = await runDuePolls();
+    res.json({ ok: true, ...summary });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+};
+router.get('/cron-tick', handleCronTick);
+router.post('/cron-tick', handleCronTick);
 
 /**
  * GET /api/alerts/:id - Get a specific alert

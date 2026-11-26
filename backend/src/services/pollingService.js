@@ -79,7 +79,14 @@ export async function startPolling() {
       alert.pollPhase = 'warm';
       await alert.save();
     }
-    scheduleNextPoll(alert);
+    const interval = POLL_INTERVALS[alert.pollPhase] || POLL_INTERVALS.warm;
+    const elapsed = alert.lastCheckedAt ? (Date.now() - new Date(alert.lastCheckedAt).getTime()) : Infinity;
+    if (elapsed >= interval) {
+      // Run overdue alerts right away on boot/wake so Render sleep doesn't starve them
+      pollAlert(alert._id.toString()).catch(err => console.error('[Poller] Boot poll error:', err.message));
+    } else {
+      scheduleNextPoll(alert);
+    }
   }
 }
 
@@ -161,8 +168,6 @@ async function pollAlert(alertId) {
         // so we don't trigger a false alarm for shows that ALREADY existed!
         if (previousShows.length === 0) {
           alert.knownShows = currentShows;
-          alert.lastCheckedAt = new Date();
-          alert.checkCount += 1;
           await alert.save();
           console.log(`[Poller] Initialized baseline with ${currentShows.length} existing shows for ${alert.theatreName} on ${alert.targetDate || 'target date'}`);
           scheduleNextPoll(alert);
@@ -200,15 +205,11 @@ async function pollAlert(alertId) {
           return;
         } else {
           // No new shows added yet
-          alert.lastCheckedAt = new Date();
-          alert.checkCount += 1;
           await alert.save();
           scheduleNextPoll(alert);
           return;
         }
       } else {
-        alert.lastCheckedAt = new Date();
-        alert.checkCount += 1;
         await alert.save();
         scheduleNextPoll(alert);
         return;
@@ -328,6 +329,28 @@ export async function pollSingleAlert(alertId) {
 }
 
 /**
+ * Run any watching alerts whose poll interval has elapsed (ideal for external cron / Render keep-alive)
+ */
+export async function runDuePolls() {
+  const activeAlerts = await Alert.find({ status: 'watching' });
+  let checked = 0;
+  let skipped = 0;
+
+  for (const alert of activeAlerts) {
+    const interval = POLL_INTERVALS[alert.pollPhase] || POLL_INTERVALS.warm;
+    const elapsed = alert.lastCheckedAt ? (Date.now() - new Date(alert.lastCheckedAt).getTime()) : Infinity;
+    if (elapsed >= interval) {
+      await pollAlert(alert._id.toString());
+      checked += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return { totalWatching: activeAlerts.length, checked, skipped, timestamp: new Date().toISOString() };
+}
+
+/**
  * Get polling stats
  */
 export function getPollingStats() {
@@ -343,6 +366,7 @@ export default {
   removeFromPolling,
   escalateAlert,
   pollSingleAlert,
+  runDuePolls,
   getPollingStats,
 };
 

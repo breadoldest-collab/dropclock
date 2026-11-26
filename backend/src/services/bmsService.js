@@ -292,11 +292,14 @@ const SERPAPI_CACHE_TTL_MS = 25 * 60 * 1000;
 const MONTHS_SHORT = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 /**
- * Parse a targetDate string ("17 DEC 2026", "20261217", "2026-12-17") into { day, month }
+ * Parse a targetDate string ("17 DEC 2026", "Thu, Nov 26", "20261217", "2026-12-17") into { day, month }
  */
 function parseTargetDayMonth(targetDate) {
   if (!targetDate) return null;
-  const str = String(targetDate).trim();
+  // Strip optional weekday prefix like "Thu, " or "Thursday "
+  const str = String(targetDate)
+    .trim()
+    .replace(/^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+/i, '');
 
   // "17 DEC 2026" or "17 Dec"
   let m = str.match(/^(\d{1,2})\s+([a-z]{3,})/i);
@@ -386,19 +389,38 @@ export async function getShowtimesFromSerpApi({ theatreName, movieName, city = '
 
       console.log(`[Showtimes API] Querying SerpApi (30m cycle): "${query}"`);
 
-      const res = await axios.get('https://serpapi.com/search.json', {
-        params: {
-          engine: 'google',
-          q: query,
-          location,
-          gl: 'in',
-          hl: 'en',
-          api_key: apiKey,
-        },
-        timeout: 15000,
-      });
+      const fetchSerpShowtimes = async (q) => {
+        const res = await axios.get('https://serpapi.com/search.json', {
+          params: {
+            engine: 'google',
+            q,
+            location,
+            gl: 'in',
+            hl: 'en',
+            api_key: apiKey,
+          },
+          timeout: 15000,
+        });
+        return res.data?.showtimes || [];
+      };
 
-      showtimesData = res.data?.showtimes || [];
+      showtimesData = await fetchSerpShowtimes(query);
+
+      // Fallback query if Google Showtimes didn't match the full formal name (e.g. "Prasads Multiplex" -> "Prasads IMAX")
+      if (showtimesData.length === 0) {
+        let altTheatre = '';
+        if (/prasads/i.test(cleanTheatre)) {
+          altTheatre = 'Prasads IMAX';
+        } else {
+          altTheatre = cleanTheatre.replace(/\b(multiplex|cinemas|cinema|theatre|70mm|35mm|4k|laser|dolby|atmos)\b/gi, '').replace(/\s+/g, ' ').trim();
+        }
+        if (altTheatre && altTheatre.toLowerCase() !== cleanTheatre.toLowerCase()) {
+          const altQuery = `${altTheatre} ${cleanCity} showtimes`.trim();
+          console.log(`[Showtimes API] Retrying fallback query: "${altQuery}"`);
+          showtimesData = await fetchSerpShowtimes(altQuery);
+        }
+      }
+
       serpApiCache.set(cacheKey, { showtimesData, fetchedAt: Date.now() });
     }
 
